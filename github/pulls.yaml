@@ -1,0 +1,218 @@
+paths:
+  pulls:
+    get:
+      operationId: listPRs
+      summary: List pull requests
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+        - {name: state, in: query, schema: {type: string, enum: [open, closed, all], default: open}}
+        - {name: head, in: query, schema: {type: string}}
+        - {name: base, in: query, schema: {type: string}}
+        - {name: sort, in: query, schema: {type: string, enum: [created, updated, popularity], default: created}}
+        - {name: direction, in: query, schema: {type: string, enum: [asc, desc], default: desc}}
+        - {name: per_page, in: query, schema: {type: integer, default: 30, maximum: 100}}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas/PR'
+    
+    post:
+      operationId: createPR
+      summary: Create pull request
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, head, base]
+              properties:
+                title: {type: string}
+                body: {type: string}
+                head: {type: string, description: "Branch with changes"}
+                base: {type: string, description: "Base branch"}
+                draft: {type: boolean, default: false}
+                maintainer_can_modify: {type: boolean, default: true}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas/PR'
+
+  pull:
+    get:
+      operationId: getPR
+      summary: Get pull request
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+        - {name: pull_number, in: path, required: true, schema: {type: integer}}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas/PR'
+    
+    patch:
+      operationId: updatePR
+      summary: Update pull request
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+        - {name: pull_number, in: path, required: true, schema: {type: integer}}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: {type: string}
+                body: {type: string}
+                state: {type: string, enum: [open, closed]}
+                base: {type: string}
+                maintainer_can_modify: {type: boolean}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas/PR'
+
+  merge:
+    put:
+      operationId: mergePR
+      summary: Merge pull request
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+        - {name: pull_number, in: path, required: true, schema: {type: integer}}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                commit_title: {type: string}
+                commit_message: {type: string}
+                merge_method: {type: string, enum: [merge, squash, rebase], default: merge}
+                sha: {type: string, description: "SHA that pull request head must match"}
+      responses:
+        '200':
+          description: Successfully merged
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sha: {type: string}
+                  merged: {type: boolean}
+                  message: {type: string}
+        '405':
+          description: Method not allowed - PR not mergeable
+
+  reviews:
+    get:
+      operationId: listPRReviews
+      summary: List pull request reviews
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+        - {name: pull_number, in: path, required: true, schema: {type: integer}}
+        - {name: per_page, in: query, schema: {type: integer, default: 30}}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas/Review'
+    
+    post:
+      operationId: createPRReview
+      summary: Create pull request review
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+        - {name: pull_number, in: path, required: true, schema: {type: integer}}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                commit_id: {type: string, description: "SHA of commit to review"}
+                body: {type: string}
+                event: {type: string, enum: [APPROVE, REQUEST_CHANGES, COMMENT]}
+                comments: 
+                  type: array
+                  items:
+                    type: object
+                    required: [path, position, body]
+                    properties:
+                      path: {type: string}
+                      position: {type: integer}
+                      body: {type: string}
+                      line: {type: integer}
+                      side: {type: string, enum: [LEFT, RIGHT]}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas/Review'
+
+  request_reviewers:
+    post:
+      operationId: requestPRReviewers
+      summary: Request reviewers for pull request
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+        - {name: pull_number, in: path, required: true, schema: {type: integer}}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reviewers: {type: array, items: {type: string}}
+                team_reviewers: {type: array, items: {type: string}}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas/PR'
+
+    delete:
+      operationId: removeReviewRequest
+      summary: Remove review request
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+        - {name: pull_number, in: path, required: true, schema: {type: integer}}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reviewers: {type: array, items: {type: string}}
+                team_reviewers: {type: array, items: {type: string}}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas/PR'
