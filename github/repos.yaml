@@ -1,0 +1,215 @@
+paths:
+  repo:
+    get:
+      operationId: getRepository
+      summary: Get repository
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: Repository details
+          content:
+            application/json:
+              schema:
+                $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas/Repo'
+        '404':
+          description: Repository not found
+    
+    patch:
+      operationId: updateRepository
+      summary: Update repository
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: {type: string}
+                description: {type: string}
+                homepage: {type: string}
+                private: {type: boolean}
+                has_issues: {type: boolean}
+                has_projects: {type: boolean}
+                has_wiki: {type: boolean}
+                default_branch: {type: string}
+                archived: {type: boolean}
+      responses:
+        '200':
+          description: Repository updated
+          content:
+            application/json:
+              schema:
+                $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas/Repo'
+    
+    delete:
+      operationId: deleteRepository
+      summary: Delete repository
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+      responses:
+        '204':
+          description: Repository deleted
+        '403':
+          description: Forbidden
+        '404':
+          description: Repository not found
+
+  user-repos:
+    get:
+      operationId: listUserRepositories
+      summary: List user repositories
+      parameters:
+        - {name: visibility, in: query, schema: {type: string, enum: [all, public, private], default: all}}
+        - {name: sort, in: query, schema: {type: string, enum: [created, updated, pushed, full_name], default: created}}
+        - {name: direction, in: query, schema: {type: string, enum: [asc, desc], default: desc}}
+        - {name: per_page, in: query, schema: {type: integer, default: 30, maximum: 100}}
+        - {name: page, in: query, schema: {type: integer, default: 1}}
+        - {name: type, in: query, schema: {type: string, enum: [all, owner, public, private, member]}}
+      responses:
+        '200':
+          description: List of repositories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas/Repo'
+    
+    post:
+      operationId: createRepository
+      summary: Create repository
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: {type: string, description: "Repository name"}
+                description: {type: string}
+                homepage: {type: string}
+                private: {type: boolean, default: false}
+                has_issues: {type: boolean, default: true}
+                has_projects: {type: boolean, default: true}
+                has_wiki: {type: boolean, default: true}
+                auto_init: {type: boolean, default: false, description: "Create initial commit with README"}
+                gitignore_template: {type: string, description: "Language/platform for .gitignore"}
+                license_template: {type: string, description: "License template"}
+                allow_squash_merge: {type: boolean, default: true}
+                allow_merge_commit: {type: boolean, default: true}
+                allow_rebase_merge: {type: boolean, default: true}
+                delete_branch_on_merge: {type: boolean, default: false}
+      responses:
+        '201':
+          description: Repository created
+          content:
+            application/json:
+              schema:
+                $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas/Repo'
+        '422':
+          description: Validation failed
+
+  org-repos:
+    get:
+      operationId: listOrgRepositories
+      summary: List organization repositories
+      parameters:
+        - {name: org, in: path, required: true, schema: {type: string}}
+        - {name: type, in: query, schema: {type: string, enum: [all, public, private, forks, sources, member]}}
+        - {name: sort, in: query, schema: {type: string, enum: [created, updated, pushed, full_name]}}
+        - {name: direction, in: query, schema: {type: string, enum: [asc, desc]}}
+        - {name: per_page, in: query, schema: {type: integer, default: 30}}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas/Repo'
+    
+    post:
+      operationId: createOrgRepository
+      summary: Create organization repository
+      parameters:
+        - {name: org, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: {type: string}
+                description: {type: string}
+                homepage: {type: string}
+                private: {type: boolean, default: false}
+                has_issues: {type: boolean, default: true}
+                has_projects: {type: boolean, default: true}
+                has_wiki: {type: boolean, default: true}
+                auto_init: {type: boolean, default: false}
+                gitignore_template: {type: string}
+                license_template: {type: string}
+                team_id: {type: integer, description: "Team ID for repository access"}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas/Repo'
+
+  collaborators:
+    get:
+      operationId: listCollaborators
+      summary: List repository collaborators
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+        - {name: affiliation, in: query, schema: {type: string, enum: [outside, direct, all]}}
+        - {name: per_page, in: query, schema: {type: integer, default: 30}}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas/User'
+    
+    put:
+      operationId: addCollaborator
+      summary: Add repository collaborator
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+        - {name: username, in: path, required: true, schema: {type: string}}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                permission: {type: string, enum: [pull, push, admin, maintain, triage], default: push}
+      responses:
+        '201':
+          description: Collaborator added
+        '204':
+          description: Collaborator already exists
+
+    delete:
+      operationId: removeCollaborator
+      summary: Remove repository collaborator
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+        - {name: username, in: path, required: true, schema: {type: string}}
+      responses:
+        '204':
+          description: Collaborator removed
