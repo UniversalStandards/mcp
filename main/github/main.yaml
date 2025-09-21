@@ -1,0 +1,74 @@
+openapi: 3.0.3
+info:
+  title: GitHub API
+  version: 1.0.0
+
+servers:
+  - url: https://api.github.com
+
+security:
+  - githubToken: [gh_token]
+
+components:
+  securitySchemes:
+    githubToken:
+      type: http
+      scheme: bearer
+
+  schemas:
+    $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas'
+
+paths:
+  # File Operations
+  /repos/{owner}/{repo}/contents/{path}:
+    $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/files.yaml#/paths/files'
+  
+  # Repository Operations
+  /repos/{owner}/{repo}:
+    $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/repos.yaml#/paths/repo'
+  
+  /user/repos:
+    $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/repos.yaml#/paths/user-repos'
+  
+  # Issues
+  /repos/{owner}/{repo}/issues:
+    $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/issues.yaml#/paths/issues'
+  
+  /repos/{owner}/{repo}/issues/{issue_number}:
+    $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/issues.yaml#/paths/issue'
+  
+  /repos/{owner}/{repo}/issues/{issue_number}/comments:
+    $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/issues.yaml#/paths/comments'
+  
+  /repos/{owner}/{repo}/issues/{issue_number}/assignees:
+    $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/issues.yaml#/paths/assignees'
+  
+  # Pull Requests
+  /repos/{owner}/{repo}/pulls:
+    $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/pulls.yaml#/paths/pulls'
+  
+  /repos/{owner}/{repo}/pulls/{pull_number}:
+    $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/pulls.yaml#/paths/pull'
+  
+  /repos/{owner}/{repo}/pulls/{pull_number}/merge:
+    $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/pulls.yaml#/paths/merge'
+  
+  /repos/{owner}/{repo}/pulls/{pull_number}/reviews:
+    $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/pulls.yaml#/paths/reviews'
+  
+  # Branches
+  /repos/{owner}/{repo}/branches:
+    $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/branches.yaml#/paths/branches'
+  
+  /repos/{owner}/{repo}/git/refs:
+    $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/branches.yaml#/paths/refs'
+  
+  /repos/{owner}/{repo}/git/refs/{ref}:
+    $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/branches.yaml#/paths/ref'
+  
+  # Search
+  /search/repositories:
+    $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/search.yaml#/paths/repos'
+  
+  /search/issues:
+    $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/search.yaml#/paths/issues'
