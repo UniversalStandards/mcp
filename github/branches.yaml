@@ -1,0 +1,205 @@
+paths:
+  branches:
+    get:
+      operationId: listBranches
+      summary: List repository branches
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+        - {name: protected, in: query, schema: {type: boolean, description: "Filter by protection status"}}
+        - {name: per_page, in: query, schema: {type: integer, default: 30, maximum: 100}}
+        - {name: page, in: query, schema: {type: integer, default: 1}}
+      responses:
+        '200':
+          description: List of branches
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas/Branch'
+
+  branch:
+    get:
+      operationId: getBranch
+      summary: Get branch
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+        - {name: branch, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas/Branch'
+
+  refs:
+    post:
+      operationId: createReference
+      summary: Create reference (branch/tag)
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ref, sha]
+              properties:
+                ref: {type: string, description: "Reference name (e.g., refs/heads/feature-branch)"}
+                sha: {type: string, description: "SHA1 value to set the reference to"}
+      responses:
+        '201':
+          description: Reference created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ref: {type: string}
+                  url: {type: string}
+                  object:
+                    type: object
+                    properties:
+                      sha: {type: string}
+                      type: {type: string}
+                      url: {type: string}
+        '422':
+          description: Validation failed
+
+    get:
+      operationId: listMatchingReferences
+      summary: List matching references
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+        - {name: ref, in: query, required: true, schema: {type: string, description: "Reference sub-namespace"}}
+        - {name: per_page, in: query, schema: {type: integer, default: 30}}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    ref: {type: string}
+                    url: {type: string}
+                    object: {type: object}
+
+  ref:
+    get:
+      operationId: getReference
+      summary: Get reference
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+        - {name: ref, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ref: {type: string}
+                  url: {type: string}
+                  object: {type: object}
+    
+    patch:
+      operationId: updateReference
+      summary: Update reference
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+        - {name: ref, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sha]
+              properties:
+                sha: {type: string, description: "SHA1 value to update the reference to"}
+                force: {type: boolean, default: false, description: "Force update (allows non-fast-forward)"}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ref: {type: string}
+                  url: {type: string}
+                  object: {type: object}
+    
+    delete:
+      operationId: deleteReference
+      summary: Delete reference
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+        - {name: ref, in: path, required: true, schema: {type: string}}
+      responses:
+        '204':
+          description: Reference deleted
+        '422':
+          description: Validation failed
+
+  merge:
+    post:
+      operationId: mergeBranch
+      summary: Merge branch
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [base, head]
+              properties:
+                base: {type: string, description: "Branch to merge into"}
+                head: {type: string, description: "Branch to merge from"}
+                commit_message: {type: string, description: "Commit message for merge"}
+      responses:
+        '201':
+          description: Merge successful
+          content:
+            application/json:
+              schema:
+                $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas/Commit'
+        '204':
+          description: Nothing to merge
+        '409':
+          description: Merge conflict
+
+  compare:
+    get:
+      operationId: compareCommits
+      summary: Compare two commits
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+        - {name: basehead, in: path, required: true, schema: {type: string, description: "Base...head comparison"}}
+      responses:
+        '200':
+          description: Comparison result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string, enum: [identical, ahead, behind, diverged]}
+                  ahead_by: {type: integer}
+                  behind_by: {type: integer}
+                  total_commits: {type: integer}
+                  commits: {type: array, items: {$ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas/Commit'}}
+                  files: {type: array, items: {type: object}}
