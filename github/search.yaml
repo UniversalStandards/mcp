@@ -1,0 +1,172 @@
+paths:
+  repos:
+    get:
+      operationId: searchRepositories
+      summary: Search repositories
+      parameters:
+        - {name: q, in: query, required: true, schema: {type: string, description: "Search query"}}
+        - {name: sort, in: query, schema: {type: string, enum: [stars, forks, help-wanted-issues, updated], description: "Sort field"}}
+        - {name: order, in: query, schema: {type: string, enum: [asc, desc], default: desc, description: "Sort order"}}
+        - {name: per_page, in: query, schema: {type: integer, default: 30, maximum: 100}}
+        - {name: page, in: query, schema: {type: integer, default: 1}}
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_count: {type: integer}
+                  incomplete_results: {type: boolean}
+                  items:
+                    type: array
+                    items:
+                      $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas/Repo'
+        '422':
+          description: Validation failed
+
+  issues:
+    get:
+      operationId: searchIssues
+      summary: Search issues and pull requests
+      parameters:
+        - {name: q, in: query, required: true, schema: {type: string, description: "Search query"}}
+        - {name: sort, in: query, schema: {type: string, enum: [comments, reactions, reactions-+1, reactions--1, reactions-smile, reactions-thinking_face, reactions-heart, reactions-tada, interactions, created, updated], description: "Sort field"}}
+        - {name: order, in: query, schema: {type: string, enum: [asc, desc], default: desc}}
+        - {name: per_page, in: query, schema: {type: integer, default: 30, maximum: 100}}
+        - {name: page, in: query, schema: {type: integer, default: 1}}
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_count: {type: integer}
+                  incomplete_results: {type: boolean}
+                  items:
+                    type: array
+                    items:
+                      $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas/Issue'
+
+  code:
+    get:
+      operationId: searchCode
+      summary: Search code
+      parameters:
+        - {name: q, in: query, required: true, schema: {type: string, description: "Search query"}}
+        - {name: sort, in: query, schema: {type: string, enum: [indexed], description: "Sort field"}}
+        - {name: order, in: query, schema: {type: string, enum: [asc, desc], default: desc}}
+        - {name: per_page, in: query, schema: {type: integer, default: 30, maximum: 100}}
+        - {name: page, in: query, schema: {type: integer, default: 1}}
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_count: {type: integer}
+                  incomplete_results: {type: boolean}
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: {type: string}
+                        path: {type: string}
+                        sha: {type: string}
+                        url: {type: string}
+                        git_url: {type: string}
+                        html_url: {type: string}
+                        repository:
+                          $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas/Repo'
+                        score: {type: number}
+
+  commits:
+    get:
+      operationId: searchCommits
+      summary: Search commits
+      parameters:
+        - {name: q, in: query, required: true, schema: {type: string, description: "Search query"}}
+        - {name: sort, in: query, schema: {type: string, enum: [author-date, committer-date], description: "Sort field"}}
+        - {name: order, in: query, schema: {type: string, enum: [asc, desc], default: desc}}
+        - {name: per_page, in: query, schema: {type: integer, default: 30, maximum: 100}}
+        - {name: page, in: query, schema: {type: integer, default: 1}}
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_count: {type: integer}
+                  incomplete_results: {type: boolean}
+                  items:
+                    type: array
+                    items:
+                      $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas/Commit'
+
+  users:
+    get:
+      operationId: searchUsers
+      summary: Search users
+      parameters:
+        - {name: q, in: query, required: true, schema: {type: string, description: "Search query"}}
+        - {name: sort, in: query, schema: {type: string, enum: [followers, repositories, joined], description: "Sort field"}}
+        - {name: order, in: query, schema: {type: string, enum: [asc, desc], default: desc}}
+        - {name: per_page, in: query, schema: {type: integer, default: 30, maximum: 100}}
+        - {name: page, in: query, schema: {type: integer, default: 1}}
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_count: {type: integer}
+                  incomplete_results: {type: boolean}
+                  items:
+                    type: array
+                    items:
+                      $ref: 'https://raw.githubusercontent.com/UniversalStandards/mcp/main/github/schemas.yaml#/components/schemas/User'
+
+  topics:
+    get:
+      operationId: searchTopics
+      summary: Search topics
+      parameters:
+        - {name: q, in: query, required: true, schema: {type: string, description: "Search query"}}
+        - {name: per_page, in: query, schema: {type: integer, default: 30, maximum: 100}}
+        - {name: page, in: query, schema: {type: integer, default: 1}}
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_count: {type: integer}
+                  incomplete_results: {type: boolean}
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: {type: string}
+                        display_name: {type: string}
+                        short_description: {type: string}
+                        description: {type: string}
+                        created_by: {type: string}
+                        released: {type: string}
+                        created_at: {type: string, format: date-time}
+                        updated_at: {type: string, format: date-time}
+                        featured: {type: boolean}
+                        curated: {type: boolean}
+                        score: {type: number}
