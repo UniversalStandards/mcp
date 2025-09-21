@@ -1,0 +1,150 @@
+multi_ai_config:
+  # Service definitions
+  services:
+    copilot:
+      type: "github_native"
+      cost_tier: "free"  # With GitHub subscription
+      strengths:
+        - "real_time_suggestions"
+        - "ide_integration"
+        - "context_aware"
+      use_cases:
+        - "code_completion"
+        - "quick_fixes"
+        - "refactoring_suggestions"
+      rate_limits:
+        requests_per_hour: 1000
+        concurrent_requests: 10
+    
+    codex:
+      type: "openai_api"
+      cost_tier: "paid"
+      strengths:
+        - "complex_analysis"
+        - "comprehensive_review"
+        - "detailed_explanations"
+      use_cases:
+        - "architecture_review"
+        - "security_analysis"
+        - "performance_optimization"
+      rate_limits:
+        requests_per_hour: 60
+        concurrent_requests: 5
+    
+    huggingface:
+      type: "free_api"
+      cost_tier: "free"
+      strengths:
+        - "specialized_models"
+        - "no_cost"
+        - "privacy_friendly"
+      use_cases:
+        - "basic_analysis"
+        - "classification"
+        - "sentiment_analysis"
+      rate_limits:
+        requests_per_hour: 100
+        concurrent_requests: 3
+    
+    ollama:
+      type: "local_model"
+      cost_tier: "free"
+      strengths:
+        - "offline_capability"
+        - "no_api_costs"
+        - "full_privacy"
+      use_cases:
+        - "initial_triage"
+        - "batch_processing"
+        - "experimental_analysis"
+      rate_limits:
+        requests_per_hour: 200
+        concurrent_requests: 1
+
+  # Routing strategies
+  routing_strategies:
+    cost_optimized:
+      priority_order:
+        - "huggingface"
+        - "ollama"
+        - "copilot"
+        - "codex"
+      fallback_chain: true
+      budget_limit: 10  # USD per month
+    
+    speed_optimized:
+      priority_order:
+        - "copilot"
+        - "codex"
+        - "huggingface"
+        - "ollama"
+      parallel_processing: true
+      timeout_seconds: 60
+    
+    quality_focused:
+      priority_order:
+        - "codex"
+        - "copilot"
+        - "huggingface"
+        - "ollama"
+      confidence_threshold: 0.8
+      human_review_required: true
+    
+    parallel_processing:
+      concurrent_services:
+        - ["copilot", "huggingface"]
+        - ["codex"]
+      consolidation_required: true
+      voting_mechanism: "weighted"
+
+  # Handoff rules
+  handoff_rules:
+    complexity_based:
+      low_complexity:
+        - "huggingface"
+        - "ollama"
+      medium_complexity:
+        - "copilot"
+        - "huggingface"
+      high_complexity:
+        - "codex"
+        - "copilot"
+    
+    task_based:
+      code_completion: ["codex", "copilot"]
+      bug_analysis: ["codex", "copilot"]
+      security_scan: ["codex", "huggingface"]
+      documentation: ["codex", "ollama"]
+      refactoring: ["copilot", "codex"]
+
+  # Cost management
+  cost_management:
+    monthly_budget: 100  # USD
+    service_limits:
+      codex: 60  # USD
+      copilot: 20  # USD (if paid tier)
+      huggingface: 0
+      ollama: 0
+    
+    alert_thresholds:
+      warning: 80  # % of budget
+      critical: 95  # % of budget
+    
+    cost_optimization:
+      prefer_free_services: true
+      cache_similar_requests: true
+      batch_processing: true
+
+  # Quality gates
+  quality_gates:
+    minimum_confidence: 0.7
+    require_consensus: true  # Multiple AI agreement
+    human_review_triggers:
+      - "security_issues"
+      - "breaking_changes"
+      - "low_confidence"
+    
+    auto_approval_criteria:
+      confidence: 0.9
+      service_agreement: 2  # At least 2 services agree
+      impact_level: "low"
