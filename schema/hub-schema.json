@@ -3,5 +3,396 @@
   "title": "Universal MCP Hub Schema",
   "description": "Schema for self-expanding MCP server hub with auto-discovery and installation",
   "version": "1.0.0",
-  "definitions": { ... trimmed for brevity in commit ... }
+  "definitions": {
+    "ServerMetadata": {
+      "type": "object",
+      "description": "Metadata for installed MCP servers",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique server identifier"
+        },
+        "name": {
+          "type": "string",
+          "description": "Server name from registry"
+        },
+        "version": {
+          "type": "string",
+          "pattern": \"^\\d+\\.\\d+\\.\\d+$\"
+        },
+        "source": {
+          "type": "string",
+          "enum": ["github-registry", "official-registry", "npm", "manual"],
+          "description": "Installation source"
+        },
+        "sourceUrl": {
+          "type": "string",
+          "format": "uri",
+          "description": "Registry or repository URL"
+        },
+        "installedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lastUsed": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ToolDefinition"
+          }
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ResourceDefinition"
+          }
+        },
+        "prompts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/PromptDefinition"
+          }
+        }
+      },
+      "required": ["id", "name", "version", "source", "installedAt"]
+    },
+    "ToolDefinition": {
+      "type": "object",
+      "description": "MCP tool definition per specification",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Tool identifier"
+        },
+        "description": {
+          "type": "string"
+        },
+        "inputSchema": {
+          "type": "object",
+          "description": "JSON Schema for tool parameters"
+        }
+      },
+      "required": ["name", "inputSchema"]
+    },
+    "ResourceDefinition": {
+      "type": "object",
+      "description": "MCP resource definition",
+      "properties": {
+        "uri": {
+          "type": "string",
+          "format": "uri"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        }
+      },
+      "required": ["uri", "name"]
+    },
+    "PromptDefinition": {
+      "type": "object",
+      "description": "MCP prompt template",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "arguments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "required": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "required": ["name"]
+    },
+    "RegistryQuery": {
+      "type": "object",
+      "description": "Query to search registries",
+      "properties": {
+        "toolName": {
+          "type": "string",
+          "description": "Tool being requested"
+        },
+        "capability": {
+          "type": "string",
+          "description": "Desired capability (e.g., 'github_search')"
+        },
+        "keywords": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "registries": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["github", "official", "npm", "all"]
+          },
+          "default": ["all"]
+        }
+      },
+      "required": ["capability"]
+    },
+    "InstallationRequest": {
+      "type": "object",
+      "description": "Request to install MCP server",
+      "properties": {
+        "serverId": {
+          "type": "string",
+          "description": "Server identifier from registry"
+        },
+        "source": {
+          "type": "string",
+          "enum": ["github-registry", "official-registry", "npm"]
+        },
+        "version": {
+          "type": "string",
+          "description": "Specific version or 'latest'"
+        },
+        "autoConfig": {
+          "type": "boolean",
+          "default": true,
+          "description": "Auto-generate configuration"
+        },
+        "userId": {
+          "type": "string",
+          "description": "User requesting installation"
+        }
+      },
+      "required": ["serverId", "source"]
+    },
+    "NormalizedRequest": {
+      "type": "object",
+      "description": "AI-normalized MCP request",
+      "properties": {
+        "originalRequest": {
+          "type": "object",
+          "description": "Original client request"
+        },
+        "normalizedMethod": {
+          "type": "string",
+          "enum": ["tools/call", "tools/list", "resources/read", "resources/list", "prompts/get", "prompts/list"]
+        },
+        "normalizedParams": {
+          "type": "object",
+          "description": "Standardized parameters"
+        },
+        "detectedIntent": {
+          "type": "string",
+          "description": "AI-interpreted user intent"
+        },
+        "suggestedServer": {
+          "type": "string",
+          "description": "Best matching server for request"
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "required": ["normalizedMethod", "normalizedParams"]
+    },
+    "UserCredentials": {
+      "type": "object",
+      "description": "Encrypted user credential store",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "credentials": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "encryptedValue": {
+                "type": "string"
+              },
+              "service": {
+                "type": "string"
+              },
+              "createdAt": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "expiresAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        }
+      },
+      "required": ["userId", "credentials"]
+    },
+    "CacheEntry": {
+      "type": "object",
+      "description": "Cached registry or server data",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object"
+        },
+        "cachedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "ttl": {
+          "type": "integer",
+          "description": "Time to live in seconds"
+        }
+      },
+      "required": ["key", "data", "cachedAt"]
+    }
+  },
+  "type": "object",
+  "properties": {
+    "hub": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "1.0.0"
+        },
+        "name": {
+          "type": "string",
+          "const": "Universal MCP Hub"
+        },
+        "installedServers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/ServerMetadata"
+          }
+        },
+        "cache": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/CacheEntry"
+          }
+        },
+        "users": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/UserCredentials"
+          }
+        }
+      },
+      "required": ["version", "name", "installedServers"]
+    },
+    "config": {
+      "type": "object",
+      "properties": {
+        "registries": {
+          "type": "object",
+          "properties": {
+            "github": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "apiUrl": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "token": {
+                  "type": "string"
+                }
+              }
+            },
+            "official": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "default": true
+                },
+                "apiUrl": {
+                  "type": "string",
+                  "format": "uri"
+                }
+              }
+            }
+          }
+        },
+        "normalizer": {
+          "type": "object",
+          "properties": {
+            "provider": {
+              "type": "string",
+              "enum": ["openai", "anthropic", "local"]
+            },
+            "model": {
+              "type": "string"
+            },
+            "apiKey": {
+              "type": "string"
+            }
+          },
+          "required": ["provider"]
+        },
+        "autoInstall": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "default": true
+            },
+            "requireApproval": {
+              "type": "boolean",
+              "default": false
+            },
+            "maxServers": {
+              "type": "integer",
+              "default": 100
+            }
+          }
+        },
+        "github": {
+          "type": "object",
+          "properties": {
+            "repo": {
+              "type": "string"
+            },
+            "branch": {
+              "type": "string",
+              "default": "main"
+            },
+            "token": {
+              "type": "string"
+            }
+          },
+          "required": ["repo", "token"]
+        }
+      },
+      "required": ["registries", "normalizer", "github"]
+    }
+  },
+  "required": ["hub", "config"]
 }

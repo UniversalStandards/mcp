@@ -1,0 +1,69 @@
+{
+  "mcpServers": {
+    "github-primary": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      },
+      "capabilities": {
+        "resources": true,
+        "tools": true,
+        "prompts": true
+      },
+      "metadata": {
+        "description": "Primary GitHub MCP server for repository operations",
+        "version": "1.0.0",
+        "features": [
+          "repository_management",
+          "issue_tracking",
+          "pull_request_operations",
+          "project_board_integration",
+          "wiki_access",
+          "actions_workflow",
+          "code_search",
+          "branch_management"
+        ]
+      }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "${WORKSPACE_PATH}"],
+      "capabilities": {
+        "resources": true,
+        "tools": true,
+        "prompts": false
+      }
+    },
+    "git-operations": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-git"],
+      "capabilities": {
+        "resources": true,
+        "tools": true,
+        "prompts": true
+      }
+    },
+    "github-issues": {
+      "command": "node",
+      "args": ["servers/github-issues/index.js"],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}",
+        "GITHUB_OWNER": "${GITHUB_OWNER}",
+        "GITHUB_REPO": "${GITHUB_REPO}"
+      },
+      "capabilities": {
+        "resources": true,
+        "tools": true,
+        "prompts": true
+      }
+    }
+  },
+  "globalSettings": {
+    "logLevel": "info",
+    "timeout": 30000,
+    "retryAttempts": 3,
+    "cacheEnabled": true,
+    "cacheTTL": 300
+  }
+}
