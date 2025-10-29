@@ -1,0 +1,7 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Universal MCP Hub Schema",
+  "description": "Schema for self-expanding MCP server hub with auto-discovery and installation",
+  "version": "1.0.0",
+  "definitions": { ... trimmed for brevity in commit ... }
+}

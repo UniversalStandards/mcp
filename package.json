@@ -1,0 +1,37 @@
+{
+  "name": "universal-mcp-hub",
+  "version": "1.0.0",
+  "description": "Self-expanding MCP server with auto-discovery and installation",
+  "main": "dist/server.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts"
+  },
+  "keywords": ["mcp", "model-context-protocol", "ai", "github", "registry"],
+  "author": "Universal Standards",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@octokit/rest": "^20.0.0",
+    "express": "^4.18.0",
+    "jsonwebtoken": "^9.0.0",
+    "node-fetch": "^3.3.0",
+    "zod": "^3.22.0",
+    "dotenv": "^16.3.0",
+    "openai": "^4.20.0",
+    "anthropic": "^0.10.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/express": "^4.17.0",
+    "@types/jsonwebtoken": "^9.0.0",
+    "typescript": "^5.3.0",
+    "tsx": "^4.7.0",
+    "eslint": "^8.55.0",
+    "jest": "^29.7.0"
+  }
+}
