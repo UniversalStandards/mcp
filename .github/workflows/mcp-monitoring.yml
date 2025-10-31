@@ -1,0 +1,15 @@
+name: MCP Server Monitoring
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Collect Metrics
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.info('Collecting MCP metrics placeholder');

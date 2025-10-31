@@ -1,0 +1,58 @@
+name: Auto-Install MCP Server
+
+on:
+  repository_dispatch:
+    types: [install-mcp-server]
+  workflow_dispatch:
+    inputs:
+      server_id:
+        description: 'MCP Server ID to install'
+        required: true
+      source:
+        description: 'Registry source'
+        required: true
+        type: choice
+        options:
+          - github-registry
+          - official-registry
+          - npm
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install MCP Server
+        id: install
+        run: |
+          SERVER_ID="${{ github.event.client_payload.server_id || github.event.inputs.server_id }}"
+          SOURCE="${{ github.event.client_payload.source || github.event.inputs.source }}"
+          
+          echo "Installing $SERVER_ID from $SOURCE"
+          npm install "$SERVER_ID" --prefix ./servers
+          
+          # Generate metadata
+          node dist/installer/generate-metadata.js "$SERVER_ID" "$SOURCE"
+
+      - name: Commit changes
+        run: |
+          git config user.name "MCP Hub Bot"
+          git config user.email "bot@mcp-hub.local"
+          git add servers/ cache/
+          git commit -m "Auto-install: ${{ github.event.client_payload.server_id || github.event.inputs.server_id }}"
+          git push
+
+      - name: Update cache
+        run: node dist/installer/update-cache.js

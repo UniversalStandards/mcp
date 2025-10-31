@@ -1,0 +1,23 @@
+name: AI PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            core.info(`Analyzing PR #${pr.number}`);
+            // Placeholder: integrate with Copilot Review or external AI later
+            await github.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body: '🤖 Initial automated checks queued. A deeper AI review will follow.'
+            });
