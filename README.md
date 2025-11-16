@@ -11,6 +11,7 @@ Traditional MCP implementations require manual discovery, installation, and conf
 - **Request Normalization**: AI layer translates between different MCP client formats [5] [6]
 - **Single Authentication**: One credential store for all tools [1] [2]
 - **Self-Expanding**: Grows capabilities based on user requests [3] [4]
+- **Label-Based Automation**: Trigger AI-powered tasks on issues/PRs with simple labels 🆕
 
 ## 🏗️ Architecture
 
@@ -217,6 +218,31 @@ POST /api/auth/register    # User registration
 ### Official MCP Registry [3]
 - API: https://registry.modelcontextprotocol.io/api/servers
 - Access community-contributed servers
+
+## 🏷️ Label-Based Task Automation
+
+Automate common development tasks by simply applying labels to issues and pull requests! The system supports AI-powered automation for:
+
+- **`copilot:fix-issue`** - Automatically analyze and fix reported issues
+- **`copilot:review-pr`** - Comprehensive automated PR review
+- **`copilot:fix-code`** - Fix code issues and bugs
+- **`copilot:merge-to-main`** - Safe automated merging after validation
+- **`copilot:update-docs`** - Update documentation automatically
+- **`copilot:security-scan`** - Security vulnerability scanning and fixes
+- **`copilot:refactor`** - Code quality improvements
+- **`copilot:add-tests`** - Generate test coverage
+- **`copilot:optimize`** - Performance optimization
+- **`copilot:deploy`** - Trigger deployment pipeline
+
+📖 **Full Documentation**: See [Label Automation Guide](docs/LABEL_AUTOMATION.md) for detailed usage instructions.
+
+**Quick Example**:
+```
+1. Create issue: "Bug: Login fails with empty email"
+2. Add label: copilot:fix-issue
+3. AI analyzes, implements fix, and creates PR
+4. Review and merge! ✨
+```
 
 ## 🤝 Contributing
 
