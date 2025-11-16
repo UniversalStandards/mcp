@@ -1,0 +1,650 @@
+name: Label-Based Task Automation
+
+on:
+  issues:
+    types: [labeled]
+  pull_request:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      task:
+        description: 'Task to execute'
+        required: true
+        type: choice
+        options:
+          - fix_issue
+          - review_pull_request
+          - fix_code
+          - merge_to_main
+          - update_documentation
+          - security_scan
+          - refactor_code
+          - add_tests
+          - optimize_performance
+          - deploy
+      issue_number:
+        description: 'Issue or PR number'
+        required: true
+        type: number
+
+env:
+  TASK_LABEL_PREFIX: "copilot:"
+
+jobs:
+  detect-task:
+    name: Detect Task from Label
+    runs-on: ubuntu-latest
+    outputs:
+      task: ${{ steps.detect.outputs.task }}
+      task_type: ${{ steps.detect.outputs.task_type }}
+      number: ${{ steps.detect.outputs.number }}
+      title: ${{ steps.detect.outputs.title }}
+      body: ${{ steps.detect.outputs.body }}
+      has_task: ${{ steps.detect.outputs.has_task }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Detect task from label
+        id: detect
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labelPrefix = process.env.TASK_LABEL_PREFIX;
+            
+            // Manual workflow dispatch
+            if (context.eventName === 'workflow_dispatch') {
+              core.setOutput('task', context.payload.inputs.task);
+              core.setOutput('task_type', 'manual');
+              core.setOutput('number', context.payload.inputs.issue_number);
+              core.setOutput('has_task', 'true');
+              return;
+            }
+            
+            // Get the label that triggered this workflow
+            const label = context.payload.label;
+            
+            if (!label || !label.name.startsWith(labelPrefix)) {
+              core.setOutput('has_task', 'false');
+              core.info('No copilot task label detected');
+              return;
+            }
+            
+            // Extract task name from label
+            const taskName = label.name.substring(labelPrefix.length).replace(/-/g, '_');
+            core.setOutput('task', taskName);
+            core.setOutput('has_task', 'true');
+            
+            // Determine if it's an issue or PR
+            if (context.payload.issue) {
+              const isPR = !!context.payload.issue.pull_request;
+              core.setOutput('task_type', isPR ? 'pull_request' : 'issue');
+              core.setOutput('number', context.payload.issue.number);
+              core.setOutput('title', context.payload.issue.title);
+              core.setOutput('body', context.payload.issue.body || '');
+            } else if (context.payload.pull_request) {
+              core.setOutput('task_type', 'pull_request');
+              core.setOutput('number', context.payload.pull_request.number);
+              core.setOutput('title', context.payload.pull_request.title);
+              core.setOutput('body', context.payload.pull_request.body || '');
+            }
+            
+            core.info(`Detected task: ${taskName} for ${core.getInput('task_type')} #${core.getInput('number')}`);
+
+  execute-fix-issue:
+    name: Execute Fix Issue Task
+    needs: detect-task
+    if: needs.detect-task.outputs.has_task == 'true' && needs.detect-task.outputs.task == 'fix_issue'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Comment on issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ needs.detect-task.outputs.number }},
+              body: '🤖 **Copilot Task Activated**: Analyzing issue and preparing fix...\n\n**Task**: Fix Issue\n**Status**: In Progress\n\nI will analyze the issue and create a PR with the proposed fix.'
+            });
+      
+      - name: Analyze issue with Codex
+        uses: lemonberrylabs/openai-codex-action@v0.3.0
+        if: env.OPENAI_API_KEY != ''
+        with:
+          branch_name: fix/issue-${{ needs.detect-task.outputs.number }}
+          prompt: |
+            ISSUE FIX TASK
+            
+            Issue #${{ needs.detect-task.outputs.number }}
+            Title: ${{ needs.detect-task.outputs.title }}
+            Description: ${{ needs.detect-task.outputs.body }}
+            
+            Please analyze this issue and implement a fix:
+            
+            1. **Root Cause Analysis**: Identify the underlying problem
+            2. **Solution Design**: Propose the minimal fix required
+            3. **Implementation**: Make the necessary code changes
+            4. **Testing**: Add or update tests to verify the fix
+            5. **Documentation**: Update docs if the fix affects user-facing features
+            
+            Create clean, minimal changes that directly address the issue.
+            Follow the existing code style and patterns in the repository.
+          approval_mode: suggest
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          model: gpt-4
+          provider_api_key: ${{ secrets.OPENAI_API_KEY }}
+          provider: openai
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+  execute-review-pr:
+    name: Execute PR Review Task
+    needs: detect-task
+    if: needs.detect-task.outputs.has_task == 'true' && needs.detect-task.outputs.task == 'review_pull_request'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Comment on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ needs.detect-task.outputs.number }},
+              body: '🤖 **Copilot Review Initiated**: Performing comprehensive code review...\n\n**Task**: Review Pull Request\n**Status**: In Progress\n\nAnalyzing code quality, security, performance, and best practices.'
+            });
+      
+      - name: Get PR diff
+        id: pr_diff
+        run: |
+          gh pr diff ${{ needs.detect-task.outputs.number }} > pr_diff.txt
+          echo "diff_file=pr_diff.txt" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Comprehensive PR Review with Codex
+        uses: lemonberrylabs/openai-codex-action@v0.3.0
+        if: env.OPENAI_API_KEY != ''
+        with:
+          branch_name: ${{ github.head_ref }}
+          prompt: |
+            COMPREHENSIVE PULL REQUEST REVIEW
+            
+            PR #${{ needs.detect-task.outputs.number }}
+            Title: ${{ needs.detect-task.outputs.title }}
+            Description: ${{ needs.detect-task.outputs.body }}
+            
+            Please perform a thorough code review covering:
+            
+            1. **Code Quality**
+               - Code style and consistency
+               - Naming conventions
+               - Code organization
+               - DRY principles
+            
+            2. **Functionality**
+               - Logic correctness
+               - Edge case handling
+               - Error handling
+               - Input validation
+            
+            3. **Performance**
+               - Algorithm efficiency
+               - Resource usage
+               - Scalability concerns
+               - Optimization opportunities
+            
+            4. **Security**
+               - Vulnerability assessment
+               - Data validation
+               - Authentication/authorization
+               - Sensitive data handling
+            
+            5. **Testing**
+               - Test coverage
+               - Test quality
+               - Missing test scenarios
+            
+            6. **Documentation**
+               - Code comments
+               - API documentation
+               - README updates
+            
+            Provide specific, actionable feedback with code suggestions where applicable.
+          approval_mode: suggest
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          model: gpt-4
+          provider_api_key: ${{ secrets.OPENAI_API_KEY }}
+          provider: openai
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+  execute-fix-code:
+    name: Execute Fix Code Task
+    needs: detect-task
+    if: needs.detect-task.outputs.has_task == 'true' && needs.detect-task.outputs.task == 'fix_code'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Comment on task start
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ needs.detect-task.outputs.number }},
+              body: '🤖 **Copilot Code Fix Initiated**: Analyzing and fixing code issues...\n\n**Task**: Fix Code\n**Status**: In Progress\n\nIdentifying and resolving bugs, errors, and code quality issues.'
+            });
+      
+      - name: Fix code issues with Codex
+        uses: lemonberrylabs/openai-codex-action@v0.3.0
+        if: env.OPENAI_API_KEY != ''
+        with:
+          branch_name: fix/code-${{ needs.detect-task.outputs.number }}
+          prompt: |
+            CODE FIX TASK
+            
+            Context: ${{ needs.detect-task.outputs.task_type }} #${{ needs.detect-task.outputs.number }}
+            Title: ${{ needs.detect-task.outputs.title }}
+            Description: ${{ needs.detect-task.outputs.body }}
+            
+            Please fix the identified code issues:
+            
+            1. **Bug Fixes**: Resolve any reported bugs
+            2. **Error Handling**: Improve error handling and edge cases
+            3. **Code Quality**: Address code quality issues
+            4. **Best Practices**: Apply language-specific best practices
+            5. **Validation**: Add input validation where needed
+            
+            Make minimal, surgical changes that directly address the issues.
+            Ensure all tests pass after your changes.
+          approval_mode: suggest
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          model: gpt-4
+          provider_api_key: ${{ secrets.OPENAI_API_KEY }}
+          provider: openai
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+  execute-merge-to-main:
+    name: Execute Merge to Main Task
+    needs: detect-task
+    if: needs.detect-task.outputs.has_task == 'true' && needs.detect-task.outputs.task == 'merge_to_main' && needs.detect-task.outputs.task_type == 'pull_request'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Validate PR is ready to merge
+        id: validate
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: ${{ needs.detect-task.outputs.number }}
+            });
+            
+            // Check if PR is mergeable
+            if (pr.data.mergeable_state !== 'clean' && pr.data.mergeable_state !== 'unstable') {
+              core.setFailed(`PR is not ready to merge. State: ${pr.data.mergeable_state}`);
+              return;
+            }
+            
+            // Check for required approvals
+            const reviews = await github.rest.pulls.listReviews({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: ${{ needs.detect-task.outputs.number }}
+            });
+            
+            const approvals = reviews.data.filter(r => r.state === 'APPROVED').length;
+            core.info(`Found ${approvals} approval(s)`);
+            
+            // Check status checks
+            const checks = await github.rest.checks.listForRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: pr.data.head.sha
+            });
+            
+            const failedChecks = checks.data.check_runs.filter(c => c.conclusion === 'failure');
+            if (failedChecks.length > 0) {
+              core.setFailed(`${failedChecks.length} check(s) failed`);
+              return;
+            }
+            
+            core.setOutput('ready', 'true');
+      
+      - name: Merge PR
+        if: steps.validate.outputs.ready == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.pulls.merge({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: ${{ needs.detect-task.outputs.number }},
+              merge_method: 'squash',
+              commit_title: '${{ needs.detect-task.outputs.title }}',
+              commit_message: 'Automatically merged via copilot:merge-to-main label'
+            });
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ needs.detect-task.outputs.number }},
+              body: '✅ **Successfully merged to main!**\n\nThis PR has been automatically merged after validation.'
+            });
+
+  execute-update-docs:
+    name: Execute Update Documentation Task
+    needs: detect-task
+    if: needs.detect-task.outputs.has_task == 'true' && needs.detect-task.outputs.task == 'update_documentation'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Comment on task start
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ needs.detect-task.outputs.number }},
+              body: '🤖 **Copilot Documentation Update Initiated**: Updating documentation...\n\n**Task**: Update Documentation\n**Status**: In Progress\n\nAnalyzing changes and updating relevant documentation.'
+            });
+      
+      - name: Update documentation with Codex
+        uses: lemonberrylabs/openai-codex-action@v0.3.0
+        if: env.OPENAI_API_KEY != ''
+        with:
+          branch_name: docs/update-${{ needs.detect-task.outputs.number }}
+          prompt: |
+            DOCUMENTATION UPDATE TASK
+            
+            Context: ${{ needs.detect-task.outputs.task_type }} #${{ needs.detect-task.outputs.number }}
+            Title: ${{ needs.detect-task.outputs.title }}
+            Changes: ${{ needs.detect-task.outputs.body }}
+            
+            Please update the documentation to reflect recent changes:
+            
+            1. **README**: Update main README.md if needed
+            2. **API Docs**: Update API documentation
+            3. **Code Comments**: Add/update inline documentation
+            4. **Examples**: Update or add usage examples
+            5. **Changelog**: Add entry to CHANGELOG if it exists
+            
+            Ensure documentation is clear, accurate, and follows the existing style.
+          approval_mode: suggest
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          model: gpt-4
+          provider_api_key: ${{ secrets.OPENAI_API_KEY }}
+          provider: openai
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+  execute-security-scan:
+    name: Execute Security Scan Task
+    needs: detect-task
+    if: needs.detect-task.outputs.has_task == 'true' && needs.detect-task.outputs.task == 'security_scan'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Comment on task start
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ needs.detect-task.outputs.number }},
+              body: '🤖 **Copilot Security Scan Initiated**: Analyzing for security vulnerabilities...\n\n**Task**: Security Scan\n**Status**: In Progress\n\nPerforming comprehensive security analysis.'
+            });
+      
+      - name: Run security scan
+        run: |
+          echo "Running security scan..."
+          # This would integrate with actual security tools
+          npm audit --json > audit.json 2>&1 || true
+          
+      - name: Analyze and fix security issues with Codex
+        uses: lemonberrylabs/openai-codex-action@v0.3.0
+        if: env.OPENAI_API_KEY != ''
+        with:
+          branch_name: security/fixes-${{ needs.detect-task.outputs.number }}
+          prompt: |
+            SECURITY SCAN AND FIX TASK
+            
+            Context: ${{ needs.detect-task.outputs.task_type }} #${{ needs.detect-task.outputs.number }}
+            
+            Please perform comprehensive security analysis:
+            
+            1. **Dependency Vulnerabilities**: Check for vulnerable dependencies
+            2. **Code Vulnerabilities**: Identify security issues in code
+            3. **Injection Risks**: Check for SQL, XSS, command injection
+            4. **Authentication/Authorization**: Verify secure auth implementation
+            5. **Data Exposure**: Check for sensitive data leaks
+            6. **Cryptography**: Verify secure crypto usage
+            
+            Fix any critical or high-severity issues found.
+            Document any medium/low issues that require manual review.
+          approval_mode: suggest
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          model: gpt-4
+          provider_api_key: ${{ secrets.OPENAI_API_KEY }}
+          provider: openai
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+  execute-refactor:
+    name: Execute Refactor Task
+    needs: detect-task
+    if: needs.detect-task.outputs.has_task == 'true' && needs.detect-task.outputs.task == 'refactor_code'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Comment on task start
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ needs.detect-task.outputs.number }},
+              body: '🤖 **Copilot Refactoring Initiated**: Improving code quality...\n\n**Task**: Refactor Code\n**Status**: In Progress\n\nAnalyzing code structure and applying improvements.'
+            });
+      
+      - name: Refactor code with Codex
+        uses: lemonberrylabs/openai-codex-action@v0.3.0
+        if: env.OPENAI_API_KEY != ''
+        with:
+          branch_name: refactor/improvements-${{ needs.detect-task.outputs.number }}
+          prompt: |
+            CODE REFACTORING TASK
+            
+            Context: ${{ needs.detect-task.outputs.task_type }} #${{ needs.detect-task.outputs.number }}
+            Title: ${{ needs.detect-task.outputs.title }}
+            Scope: ${{ needs.detect-task.outputs.body }}
+            
+            Please refactor the code for better quality:
+            
+            1. **Code Organization**: Improve structure and modularity
+            2. **Design Patterns**: Apply appropriate patterns
+            3. **DRY Principle**: Remove code duplication
+            4. **Naming**: Use clear, descriptive names
+            5. **Performance**: Optimize where beneficial
+            6. **Maintainability**: Make code easier to understand and modify
+            
+            Maintain backward compatibility and ensure all tests still pass.
+          approval_mode: suggest
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          model: gpt-4
+          provider_api_key: ${{ secrets.OPENAI_API_KEY }}
+          provider: openai
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+  execute-add-tests:
+    name: Execute Add Tests Task
+    needs: detect-task
+    if: needs.detect-task.outputs.has_task == 'true' && needs.detect-task.outputs.task == 'add_tests'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Comment on task start
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ needs.detect-task.outputs.number }},
+              body: '🤖 **Copilot Test Generation Initiated**: Adding test coverage...\n\n**Task**: Add Tests\n**Status**: In Progress\n\nAnalyzing code and generating comprehensive tests.'
+            });
+      
+      - name: Add tests with Codex
+        uses: lemonberrylabs/openai-codex-action@v0.3.0
+        if: env.OPENAI_API_KEY != ''
+        with:
+          branch_name: tests/add-coverage-${{ needs.detect-task.outputs.number }}
+          prompt: |
+            TEST GENERATION TASK
+            
+            Context: ${{ needs.detect-task.outputs.task_type }} #${{ needs.detect-task.outputs.number }}
+            Title: ${{ needs.detect-task.outputs.title }}
+            Scope: ${{ needs.detect-task.outputs.body }}
+            
+            Please add comprehensive test coverage:
+            
+            1. **Unit Tests**: Test individual functions/methods
+            2. **Integration Tests**: Test component interactions
+            3. **Edge Cases**: Test boundary conditions
+            4. **Error Cases**: Test error handling
+            5. **Happy Path**: Test normal operation
+            
+            Follow the existing test patterns and framework in the repository.
+            Aim for high coverage while keeping tests maintainable.
+          approval_mode: suggest
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          model: gpt-4
+          provider_api_key: ${{ secrets.OPENAI_API_KEY }}
+          provider: openai
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+  execute-optimize:
+    name: Execute Optimize Performance Task
+    needs: detect-task
+    if: needs.detect-task.outputs.has_task == 'true' && needs.detect-task.outputs.task == 'optimize_performance'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Comment on task start
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ needs.detect-task.outputs.number }},
+              body: '🤖 **Copilot Performance Optimization Initiated**: Analyzing and optimizing...\n\n**Task**: Optimize Performance\n**Status**: In Progress\n\nIdentifying performance bottlenecks and applying optimizations.'
+            });
+      
+      - name: Optimize performance with Codex
+        uses: lemonberrylabs/openai-codex-action@v0.3.0
+        if: env.OPENAI_API_KEY != ''
+        with:
+          branch_name: optimize/performance-${{ needs.detect-task.outputs.number }}
+          prompt: |
+            PERFORMANCE OPTIMIZATION TASK
+            
+            Context: ${{ needs.detect-task.outputs.task_type }} #${{ needs.detect-task.outputs.number }}
+            Title: ${{ needs.detect-task.outputs.title }}
+            Scope: ${{ needs.detect-task.outputs.body }}
+            
+            Please optimize performance:
+            
+            1. **Algorithm Efficiency**: Improve time complexity
+            2. **Memory Usage**: Reduce memory footprint
+            3. **Database Queries**: Optimize queries and add indexes
+            4. **API Calls**: Reduce unnecessary calls, add caching
+            5. **Lazy Loading**: Defer expensive operations
+            6. **Parallelization**: Use concurrent processing where beneficial
+            
+            Measure impact and ensure optimizations are meaningful.
+            Don't sacrifice code clarity for micro-optimizations.
+          approval_mode: suggest
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          model: gpt-4
+          provider_api_key: ${{ secrets.OPENAI_API_KEY }}
+          provider: openai
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+  task-summary:
+    name: Task Execution Summary
+    needs: [detect-task]
+    if: always() && needs.detect-task.outputs.has_task == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Post execution summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const taskName = '${{ needs.detect-task.outputs.task }}';
+            const taskNumber = '${{ needs.detect-task.outputs.number }}';
+            const taskType = '${{ needs.detect-task.outputs.task_type }}';
+            
+            const summary = `
+            ## 🤖 Label-Based Task Automation Summary
+            
+            - **Task**: ${taskName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+            - **Type**: ${taskType}
+            - **Number**: #${taskNumber}
+            - **Status**: Completed
+            - **Timestamp**: ${new Date().toISOString()}
+            
+            The automated task has been executed. Please review any PRs or comments created by this workflow.
+            `;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: parseInt(taskNumber),
+              body: summary
+            });

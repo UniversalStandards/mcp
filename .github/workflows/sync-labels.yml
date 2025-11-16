@@ -1,0 +1,122 @@
+name: Sync Repository Labels
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/labels.yml'
+  workflow_dispatch:
+
+jobs:
+  sync-labels:
+    name: Sync Labels to Repository
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Install dependencies
+        run: |
+          npm install -g js-yaml
+      
+      - name: Parse labels configuration
+        id: parse
+        run: |
+          node << 'EOF'
+          const fs = require('fs');
+          const yaml = require('js-yaml');
+          
+          try {
+            const config = yaml.load(fs.readFileSync('.github/labels.yml', 'utf8'));
+            const labels = config.labels || [];
+            
+            console.log(`Found ${labels.length} labels to sync`);
+            
+            // Save labels as JSON for the next step
+            fs.writeFileSync('labels.json', JSON.stringify(labels, null, 2));
+            
+          } catch (e) {
+            console.error('Error parsing labels.yml:', e);
+            process.exit(1);
+          }
+          EOF
+      
+      - name: Sync labels to repository
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const labels = JSON.parse(fs.readFileSync('labels.json', 'utf8'));
+            
+            console.log(`Syncing ${labels.length} labels...`);
+            
+            // Get existing labels
+            const existingLabels = await github.rest.issues.listLabelsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100
+            });
+            
+            const existingLabelMap = new Map(
+              existingLabels.data.map(label => [label.name, label])
+            );
+            
+            let created = 0;
+            let updated = 0;
+            let skipped = 0;
+            
+            for (const label of labels) {
+              try {
+                if (existingLabelMap.has(label.name)) {
+                  // Update existing label
+                  const existing = existingLabelMap.get(label.name);
+                  if (existing.color !== label.color || existing.description !== label.description) {
+                    await github.rest.issues.updateLabel({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      name: label.name,
+                      color: label.color,
+                      description: label.description
+                    });
+                    console.log(`✓ Updated label: ${label.name}`);
+                    updated++;
+                  } else {
+                    console.log(`- Skipped label (no changes): ${label.name}`);
+                    skipped++;
+                  }
+                } else {
+                  // Create new label
+                  await github.rest.issues.createLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name: label.name,
+                    color: label.color,
+                    description: label.description
+                  });
+                  console.log(`+ Created label: ${label.name}`);
+                  created++;
+                }
+              } catch (error) {
+                console.error(`Error processing label ${label.name}:`, error.message);
+              }
+            }
+            
+            // Create summary
+            const summary = `
+            ## 🏷️ Label Sync Summary
+            
+            - ✅ Created: ${created}
+            - 🔄 Updated: ${updated}
+            - ⏭️ Skipped: ${skipped}
+            - 📊 Total: ${labels.length}
+            
+            ### Labels Configured:
+            ${labels.map(l => `- \`${l.name}\` - ${l.description}`).join('\n')}
+            `;
+            
+            core.summary.addRaw(summary);
+            await core.summary.write();
+            
+            console.log(`\nSync completed: ${created} created, ${updated} updated, ${skipped} skipped`);
