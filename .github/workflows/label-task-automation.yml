@@ -48,7 +48,7 @@ jobs:
       
       - name: Detect task from label
         id: detect
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const labelPrefix = process.env.TASK_LABEL_PREFIX;
@@ -103,7 +103,7 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Comment on issue
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             await github.rest.issues.createComment({
@@ -156,7 +156,7 @@ jobs:
           fetch-depth: 0
       
       - name: Comment on PR
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             await github.rest.issues.createComment({
@@ -242,7 +242,7 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Comment on task start
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             await github.rest.issues.createComment({
@@ -294,7 +294,7 @@ jobs:
       
       - name: Validate PR is ready to merge
         id: validate
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const pr = await github.rest.pulls.get({
@@ -336,7 +336,7 @@ jobs:
       
       - name: Merge PR
         if: steps.validate.outputs.ready == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             await github.rest.pulls.merge({
@@ -366,7 +366,7 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Comment on task start
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             await github.rest.issues.createComment({
@@ -416,7 +416,7 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Comment on task start
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             await github.rest.issues.createComment({
@@ -472,7 +472,7 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Comment on task start
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             await github.rest.issues.createComment({
@@ -523,7 +523,7 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Comment on task start
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             await github.rest.issues.createComment({
@@ -574,7 +574,7 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Comment on task start
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             await github.rest.issues.createComment({
@@ -623,7 +623,7 @@ jobs:
     
     steps:
       - name: Post execution summary
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const taskName = '${{ needs.detect-task.outputs.task }}';
