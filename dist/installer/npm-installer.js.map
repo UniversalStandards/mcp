@@ -1,0 +1,1 @@
+{"version":3,"file":"npm-installer.js","sourceRoot":"","sources":["../../src/installer/npm-installer.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,IAAI,IAAI,KAAK,EAAE,MAAM,oBAAoB,CAAC;AACnD,OAAO,EAAE,SAAS,EAAE,MAAM,WAAW,CAAC;AACtC,MAAM,IAAI,GAAG,SAAS,CAAC,KAAK,CAAC,CAAC;AAC9B,MAAM,CAAC,KAAK,UAAU,UAAU,CAAC,QAAgB;IAC/C,MAAM,IAAI,CAAC,eAAe,QAAQ,qBAAqB,CAAC,CAAC;AAC3D,CAAC"}
