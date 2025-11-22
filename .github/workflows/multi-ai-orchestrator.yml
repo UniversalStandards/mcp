@@ -50,12 +50,9 @@ jobs:
     - name: Intelligent AI Strategy Selection
       id: selector
       run: |
-        # Determine optimal AI strategy based on context
         EVENT_TYPE="${{ github.event_name }}"
         REPO_SIZE=$(curl -s "https://api.github.com/repos/${{ github.repository }}" | jq '.size')
         CHANGED_FILES=$(echo "${{ github.event.pull_request.changed_files || 0 }}")
-        
-        # Strategy selection logic
         if [[ "${{ env.AI_STRATEGY }}" == "auto_select" ]]; then
           if [[ $CHANGED_FILES -gt 20 || $REPO_SIZE -gt 100000 ]]; then
             echo "strategy=parallel_processing" >> $GITHUB_OUTPUT
@@ -84,7 +81,6 @@ jobs:
           echo "cost_budget=medium" >> $GITHUB_OUTPUT
         fi
 
-  # Parallel Processing Jobs
   copilot-analysis:
     needs: ai-strategy-selector
     runs-on: ubuntu-latest
@@ -92,28 +88,21 @@ jobs:
     outputs:
       suggestions: ${{ steps.copilot.outputs.suggestions }}
       confidence: ${{ steps.copilot.outputs.confidence }}
-    
     steps:
-    - uses: actions/checkout@v6
-    
+    - uses: actions/checkout@v4
+
     - name: Setup GitHub Copilot CLI
       run: |
-        # Install GitHub CLI with Copilot extension
         gh extension install github/gh-copilot || true
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    
+
     - name: Copilot Code Analysis
       id: copilot
       run: |
-        # Use Copilot for real-time code suggestions
         if [[ -n "${{ github.event.pull_request.number }}" ]]; then
-          # Analyze PR changes
           gh pr diff ${{ github.event.pull_request.number }} > pr_diff.txt
-          
-          # Get Copilot suggestions for the diff
           copilot_output=$(gh copilot suggest "Review this code diff and provide optimization suggestions" < pr_diff.txt 2>/dev/null || echo "No suggestions")
-          
           echo "suggestions<<EOF" >> $GITHUB_OUTPUT
           echo "$copilot_output" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -129,10 +118,8 @@ jobs:
     outputs:
       analysis: ${{ steps.codex.outputs.analysis }}
       recommendations: ${{ steps.codex.outputs.recommendations }}
-    
     steps:
-    - uses: actions/checkout@v6
-    
+    - uses: actions/checkout@v4
     - name: OpenAI Codex Deep Analysis
       id: codex
       uses: lemonberrylabs/openai-codex-action@v0.3.0
@@ -140,33 +127,26 @@ jobs:
         branch_name: ${{ github.head_ref || github.ref_name }}
         prompt: |
           CODEX ANALYSIS - Deep Code Intelligence
-          
           Repository: ${{ github.repository }}
           Strategy: ${{ needs.ai-strategy-selector.outputs.strategy }}
           Budget: ${{ needs.ai-strategy-selector.outputs.cost_budget }}
-          
           Perform comprehensive analysis focusing on:
-          
           1. **Architecture & Design Patterns**
              - SOLID principles compliance
              - Design pattern implementation
              - Code organization assessment
-          
           2. **Performance & Optimization**
              - Algorithm complexity analysis
              - Memory usage optimization
              - Database query efficiency
-          
           3. **Security & Reliability**
              - Vulnerability detection
              - Error handling robustness
              - Input validation completeness
-          
           4. **Code Quality Metrics**
              - Maintainability index
              - Cyclomatic complexity
              - Technical debt assessment
-          
           Provide structured, actionable recommendations with priority levels.
         approval_mode: suggest
         github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -180,48 +160,36 @@ jobs:
     if: needs.ai-strategy-selector.outputs.cost_budget == 'low' || needs.ai-strategy-selector.outputs.secondary_ai == 'huggingface'
     outputs:
       analysis: ${{ steps.hf.outputs.analysis }}
-    
     steps:
-    - uses: actions/checkout@v6
-    
+    - uses: actions/checkout@v4
     - name: Setup Python for Hugging Face
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-    
     - name: Hugging Face Free AI Analysis
       id: hf
       run: |
         pip install transformers torch huggingface_hub requests
-        
         python << 'EOF'
         import os
         import requests
         import json
         from transformers import pipeline
-        
-        # Use free Hugging Face models for analysis
         try:
-            # Code analysis using free models
             classifier = pipeline("text-classification", 
                                 model="microsoft/CodeBERT-base", 
                                 return_all_scores=True)
-            
-            # Get changed files content
             changed_files = []
             if os.path.exists('.git'):
                 import subprocess
                 result = subprocess.run(['git', 'diff', '--name-only', 'HEAD~1'], 
                                       capture_output=True, text=True)
                 changed_files = result.stdout.strip().split('\n') if result.stdout.strip() else []
-            
             analysis_results = []
-            for file in changed_files[:5]:  # Limit to first 5 files
+            for file in changed_files[:5]:
                 if os.path.exists(file) and file.endswith(('.py', '.js', '.ts', '.java')):
                     with open(file, 'r', encoding='utf-8', errors='ignore') as f:
-                        content = f.read()[:2000]  # Limit content size
-                        
-                    # Basic analysis using free models
+                        content = f.read()[:2000]
                     analysis = {
                         'file': file,
                         'size': len(content),
@@ -233,13 +201,10 @@ jobs:
                         ]
                     }
                     analysis_results.append(analysis)
-            
-            # Output results
             with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                 f.write("analysis<<EOF\n")
                 f.write(json.dumps(analysis_results, indent=2))
                 f.write("\nEOF\n")
-                
         except Exception as e:
             print(f"Hugging Face analysis failed: {e}")
             with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
@@ -250,64 +215,42 @@ jobs:
     needs: ai-strategy-selector
     runs-on: ubuntu-latest
     if: needs.ai-strategy-selector.outputs.strategy == 'cost_optimized'
-    
     steps:
-    - uses: actions/checkout@v6
-    
+    - uses: actions/checkout@v4
     - name: Setup Ollama for Local AI
       run: |
-        # Install Ollama for local/free AI processing
         curl -fsSL https://ollama.ai/install.sh | sh
-        
-        # Start Ollama service
         ollama serve &
         sleep 10
-        
-        # Pull a lightweight model for code analysis
         ollama pull codellama:7b-code
-    
     - name: Local AI Code Analysis
       run: |
-        # Use local Ollama for free AI analysis
         cat > analysis_prompt.txt << 'EOF'
         Analyze this code repository for:
         1. Code quality issues
         2. Potential bugs
         3. Performance improvements
         4. Security vulnerabilities
-        
         Provide concise, actionable recommendations.
         EOF
-        
-        # Get repository context
         find . -name "*.py" -o -name "*.js" -o -name "*.ts" | head -10 | xargs cat | head -5000 > code_sample.txt
-        
-        # Run analysis with Ollama
         cat analysis_prompt.txt code_sample.txt | ollama run codellama:7b-code > ollama_analysis.txt
-        
         echo "## Ollama Local AI Analysis" >> $GITHUB_STEP_SUMMARY
         cat ollama_analysis.txt >> $GITHUB_STEP_SUMMARY
 
-  # Sequential Handoff Processing
   sequential-ai-processor:
     needs: ai-strategy-selector
     runs-on: ubuntu-latest
     if: needs.ai-strategy-selector.outputs.use_parallel == 'false'
-    
     steps:
-    - uses: actions/checkout@v6
-    
+    - uses: actions/checkout@v4
     - name: Stage 1 - Initial Analysis (Free AI)
       id: stage1
       run: |
         echo "Running initial analysis with free AI services..."
-        
-        # Use free services for initial triage
         python << 'EOF'
         import json
         import os
-        
-        # Simple rule-based analysis as fallback
         analysis = {
             'stage': 'initial',
             'complexity': 'medium',
@@ -315,22 +258,17 @@ jobs:
             'estimated_cost': 'low',
             'handoff_to': 'copilot'
         }
-        
         with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
             f.write(f"handoff_decision={analysis['handoff_to']}\n")
             f.write(f"complexity={analysis['complexity']}\n")
         EOF
-    
     - name: Stage 2 - Copilot Processing
       if: steps.stage1.outputs.handoff_decision == 'copilot'
       run: |
         echo "Processing with GitHub Copilot..."
-        
-        # Copilot analysis
         gh copilot suggest "Analyze repository for code quality improvements" || echo "Copilot analysis completed"
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    
     - name: Stage 3 - Codex Finalization
       if: steps.stage1.outputs.complexity != 'low'
       uses: lemonberrylabs/openai-codex-action@v0.3.0
@@ -338,15 +276,12 @@ jobs:
         branch_name: sequential-analysis-${{ github.run_number }}
         prompt: |
           FINAL STAGE ANALYSIS - Codex Integration
-          
           Previous Analysis Stage: ${{ steps.stage1.outputs.complexity }}
-          
           Perform final comprehensive review and provide:
           1. Consolidated recommendations
           2. Implementation priority matrix
           3. Risk assessment
           4. Next steps roadmap
-          
           Focus on actionable, high-impact improvements.
         approval_mode: suggest
         github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -354,12 +289,10 @@ jobs:
         provider_api_key: ${{ secrets.OPENAI_API_KEY }}
         provider: openai
 
-  # Results Consolidation
   ai-results-consolidator:
     needs: [ai-strategy-selector, copilot-analysis, codex-analysis, huggingface-analysis]
     runs-on: ubuntu-latest
     if: always() && needs.ai-strategy-selector.outputs.use_parallel == 'true'
-    
     steps:
     - name: Consolidate Multi-AI Results
       uses: lemonberrylabs/openai-codex-action@v0.3.0
@@ -367,40 +300,30 @@ jobs:
         branch_name: consolidated-analysis-${{ github.run_number }}
         prompt: |
           MULTI-AI RESULTS CONSOLIDATION
-          
           Strategy Used: ${{ needs.ai-strategy-selector.outputs.strategy }}
-          
           **Copilot Analysis:**
           ${{ needs.copilot-analysis.outputs.suggestions || 'Not available' }}
-          
           **Codex Analysis:**
           ${{ needs.codex-analysis.outputs.analysis || 'Not available' }}
-          
           **Hugging Face Analysis:**
           ${{ needs.huggingface-analysis.outputs.analysis || 'Not available' }}
-          
           Please consolidate these analyses into:
-          
           1. **Unified Recommendations**
              - Merge overlapping suggestions
              - Prioritize by impact and effort
              - Remove contradictory advice
-          
           2. **Confidence Scoring**
              - Rate each recommendation (1-10)
              - Identify high-confidence items
              - Flag areas needing human review
-          
           3. **Implementation Roadmap**
              - Quick wins (< 1 day)
              - Medium-term improvements (1-7 days)
              - Long-term initiatives (> 1 week)
-          
           4. **AI Performance Analysis**
              - Compare AI service effectiveness
              - Recommend optimal AI routing
              - Cost-benefit analysis
-          
           Provide final consolidated report with clear next steps.
         approval_mode: suggest
         github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -408,16 +331,13 @@ jobs:
         provider_api_key: ${{ secrets.OPENAI_API_KEY }}
         provider: openai
 
-  # Cost and Performance Tracking
   ai-metrics-tracker:
     needs: [ai-strategy-selector]
     runs-on: ubuntu-latest
     if: always()
-    
     steps:
     - name: Track AI Usage Metrics
       run: |
-        # Create metrics tracking
         cat > ai_metrics.json << EOF
         {
           "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
@@ -431,7 +351,6 @@ jobs:
           "status": "${{ job.status }}"
         }
         EOF
-        
         echo "## 🤖 Multi-AI Processing Summary" >> $GITHUB_STEP_SUMMARY
         echo "- **Strategy**: ${{ needs.ai-strategy-selector.outputs.strategy }}" >> $GITHUB_STEP_SUMMARY
         echo "- **Primary AI**: ${{ needs.ai-strategy-selector.outputs.primary_ai }}" >> $GITHUB_STEP_SUMMARY
