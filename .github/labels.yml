@@ -1,0 +1,210 @@
+# GitHub Labels Configuration for Automated Task Execution
+# These labels trigger different AI-powered tasks when applied to issues or PRs
+
+labels:
+  # Copilot/Codex Task Labels
+  - name: "copilot:fix-issue"
+    color: "0E8A16"
+    description: "Instructs Copilot to analyze and automatically fix the reported issue"
+    task: "fix_issue"
+    
+  - name: "copilot:review-pr"
+    color: "1D76DB"
+    description: "Triggers comprehensive automated PR review by Copilot"
+    task: "review_pull_request"
+    
+  - name: "copilot:fix-code"
+    color: "D93F0B"
+    description: "Instructs Copilot to fix code issues and bugs"
+    task: "fix_code"
+    
+  - name: "copilot:merge-to-main"
+    color: "5319E7"
+    description: "Automates merge to main branch after all checks pass"
+    task: "merge_to_main"
+    
+  - name: "copilot:update-docs"
+    color: "FBCA04"
+    description: "Updates related documentation automatically"
+    task: "update_documentation"
+    
+  - name: "copilot:security-scan"
+    color: "B60205"
+    description: "Runs comprehensive security analysis and fixes vulnerabilities"
+    task: "security_scan"
+    
+  - name: "copilot:refactor"
+    color: "006B75"
+    description: "Refactors code for better quality and maintainability"
+    task: "refactor_code"
+    
+  - name: "copilot:add-tests"
+    color: "C2E0C6"
+    description: "Generates and adds missing test coverage"
+    task: "add_tests"
+    
+  - name: "copilot:optimize"
+    color: "E99695"
+    description: "Optimizes performance and efficiency"
+    task: "optimize_performance"
+    
+  - name: "copilot:deploy"
+    color: "BFD4F2"
+    description: "Triggers deployment pipeline"
+    task: "deploy"
+
+# Task definitions with detailed instructions
+tasks:
+  fix_issue:
+    description: "Analyze the issue description and automatically implement a fix"
+    ai_prompt: |
+      You are tasked with fixing this issue:
+      
+      Issue Title: {{issue.title}}
+      Issue Body: {{issue.body}}
+      
+      Please:
+      1. Analyze the issue thoroughly
+      2. Identify the root cause
+      3. Implement a minimal fix
+      4. Add tests if needed
+      5. Update documentation if required
+      6. Create a PR with your changes
+      
+  review_pull_request:
+    description: "Perform comprehensive PR review"
+    ai_prompt: |
+      Review this pull request:
+      
+      PR Title: {{pr.title}}
+      PR Description: {{pr.body}}
+      Changed Files: {{pr.changed_files}}
+      
+      Provide detailed review covering:
+      1. Code quality and style
+      2. Potential bugs or issues
+      3. Performance considerations
+      4. Security concerns
+      5. Test coverage
+      6. Documentation completeness
+      
+  fix_code:
+    description: "Fix code issues in the PR or issue context"
+    ai_prompt: |
+      Fix the code issues identified in:
+      
+      Context: {{context.title}}
+      Description: {{context.body}}
+      
+      Focus on:
+      1. Bug fixes
+      2. Error handling
+      3. Edge cases
+      4. Code quality improvements
+      
+  merge_to_main:
+    description: "Safely merge PR to main after validation"
+    ai_prompt: |
+      Prepare to merge this PR to main:
+      
+      PR: {{pr.number}}
+      Title: {{pr.title}}
+      
+      Before merging:
+      1. Verify all checks pass
+      2. Confirm approvals are in place
+      3. Check for merge conflicts
+      4. Validate tests pass
+      5. Execute merge
+      
+  update_documentation:
+    description: "Update documentation based on code changes"
+    ai_prompt: |
+      Update documentation for:
+      
+      Changes: {{context.description}}
+      Files Changed: {{context.files}}
+      
+      Update:
+      1. README if needed
+      2. API documentation
+      3. Code comments
+      4. Usage examples
+      5. Changelog
+      
+  security_scan:
+    description: "Scan for security vulnerabilities and fix them"
+    ai_prompt: |
+      Perform security analysis on:
+      
+      Context: {{context.title}}
+      Scope: {{context.files}}
+      
+      Check for:
+      1. Known vulnerabilities
+      2. Insecure dependencies
+      3. Code injection risks
+      4. Authentication issues
+      5. Data exposure risks
+      
+      Fix any issues found.
+      
+  refactor_code:
+    description: "Refactor code for better quality"
+    ai_prompt: |
+      Refactor the code in:
+      
+      Scope: {{context.description}}
+      Files: {{context.files}}
+      
+      Improvements:
+      1. Code organization
+      2. Design patterns
+      3. DRY principles
+      4. Naming conventions
+      5. Performance optimization
+      
+  add_tests:
+    description: "Add missing test coverage"
+    ai_prompt: |
+      Add tests for:
+      
+      Context: {{context.description}}
+      Files: {{context.files}}
+      
+      Ensure:
+      1. Unit tests for new functions
+      2. Integration tests for flows
+      3. Edge case coverage
+      4. Error condition tests
+      5. Maintain existing test patterns
+      
+  optimize_performance:
+    description: "Optimize code performance"
+    ai_prompt: |
+      Optimize performance for:
+      
+      Context: {{context.description}}
+      Files: {{context.files}}
+      
+      Focus on:
+      1. Algorithm efficiency
+      2. Memory usage
+      3. Database queries
+      4. API calls
+      5. Caching opportunities
+      
+  deploy:
+    description: "Trigger deployment pipeline"
+    ai_prompt: |
+      Prepare deployment for:
+      
+      Branch: {{context.branch}}
+      Environment: {{context.environment}}
+      
+      Steps:
+      1. Run pre-deployment checks
+      2. Build artifacts
+      3. Run deployment
+      4. Verify deployment
+      5. Post-deployment validation
