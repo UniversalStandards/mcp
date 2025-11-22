@@ -94,7 +94,7 @@ jobs:
       confidence: ${{ steps.copilot.outputs.confidence }}
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     
     - name: Setup GitHub Copilot CLI
       run: |
@@ -131,7 +131,7 @@ jobs:
       recommendations: ${{ steps.codex.outputs.recommendations }}
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     
     - name: OpenAI Codex Deep Analysis
       id: codex
@@ -182,7 +182,7 @@ jobs:
       analysis: ${{ steps.hf.outputs.analysis }}
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     
     - name: Setup Python for Hugging Face
       uses: actions/setup-python@v4
@@ -252,7 +252,7 @@ jobs:
     if: needs.ai-strategy-selector.outputs.strategy == 'cost_optimized'
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     
     - name: Setup Ollama for Local AI
       run: |
@@ -295,7 +295,7 @@ jobs:
     if: needs.ai-strategy-selector.outputs.use_parallel == 'false'
     
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v6
     
     - name: Stage 1 - Initial Analysis (Free AI)
       id: stage1
