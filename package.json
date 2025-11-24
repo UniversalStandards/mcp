@@ -21,7 +21,7 @@
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.0",
     "node-fetch": "^3.3.0",
-    "zod": "^3.22.0",
+    "zod": "^4.1.13",
     "dotenv": "^17.2.3",
     "openai": "^6.9.1",
     "@anthropic-ai/sdk": "^0.70.0",
