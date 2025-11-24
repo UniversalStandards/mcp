@@ -163,7 +163,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Setup Python for Hugging Face
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v6
       with:
         python-version: '3.11'
     - name: Hugging Face Free AI Analysis
