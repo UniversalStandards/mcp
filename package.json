@@ -16,7 +16,7 @@
   "author": "Universal Standards",
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@modelcontextprotocol/sdk": "^1.23.0",
     "@octokit/rest": "^22.0.1",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.0",
