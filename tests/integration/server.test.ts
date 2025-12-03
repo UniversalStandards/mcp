@@ -11,7 +11,7 @@ describe('Server Integration', () => {
       const response = await fetch(`${baseUrl}/health`);
       const data = await response.json();
 
-      expect(response.status).toBeLessThanOrEqual(200);
+      expect(response.status).toBe(200);
       expect(data).toHaveProperty('status');
       expect(data).toHaveProperty('checks');
     });

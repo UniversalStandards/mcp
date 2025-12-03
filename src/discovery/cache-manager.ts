@@ -162,7 +162,7 @@ function persistCache() {
 }
 
 // Cleanup expired entries periodically
-setInterval(() => {
+const cleanupInterval = setInterval(() => {
   const now = Date.now();
   let cleaned = 0;
   
@@ -179,7 +179,11 @@ setInterval(() => {
   }
 }, 60000); // Check every minute
 
+// Allow cleanup to be stopped in tests
+cleanupInterval.unref();
+
 // Persist on process exit
 process.on('exit', () => {
+  clearInterval(cleanupInterval);
   persistCache();
 });

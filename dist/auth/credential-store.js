@@ -186,7 +186,7 @@ function persistCredentials() {
     }
 }
 // Clean up expired credentials periodically
-setInterval(() => {
+const cleanupInterval = setInterval(() => {
     const now = new Date();
     let cleaned = 0;
     for (const [key, stored] of memoryStore) {
@@ -200,8 +200,11 @@ setInterval(() => {
         persistCredentials();
     }
 }, 3600000); // Check every hour
+// Allow cleanup to be stopped in tests
+cleanupInterval.unref();
 // Persist on exit
 process.on('exit', () => {
+    clearInterval(cleanupInterval);
     persistCredentials();
 });
 //# sourceMappingURL=credential-store.js.map
