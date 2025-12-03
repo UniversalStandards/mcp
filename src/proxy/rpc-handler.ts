@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import { parseIncoming, createErrorResponse, createSuccessResponse, validateMethod } from '../normalizer/request-parser.js';
 import { normalizeRequest } from '../normalizer/ai-client.js';
+import { recordRequest, recordSearch, recordInstallation } from '../monitoring/metrics.js';
 import { searchGitHubRegistry } from '../discovery/github-registry.js';
 import { searchOfficialRegistry } from '../discovery/official-registry.js';
 import { npmInstall } from '../installer/npm-installer.js';
@@ -60,10 +61,13 @@ function initializeServers() {
 
 export async function handleRpc(req: Request, res: Response): Promise<void> {
   const startTime = Date.now();
+  let method = 'unknown';
+  let success = false;
   
   try {
     // Parse incoming request
     const parsed = parseIncoming(req.body);
+    method = parsed.method;
     
     // Validate method
     if (!validateMethod(parsed.method)) {
@@ -124,6 +128,9 @@ export async function handleRpc(req: Request, res: Response): Promise<void> {
     const duration = Date.now() - startTime;
     console.log(`Request processed in ${duration}ms`);
     
+    success = true;
+    recordRequest(method, duration, true);
+    
     res.json(createSuccessResponse(parsed.id, {
       normalized,
       processingTime: duration,
@@ -132,6 +139,9 @@ export async function handleRpc(req: Request, res: Response): Promise<void> {
     
   } catch (error) {
     console.error('RPC handler error:', error);
+    const duration = Date.now() - startTime;
+    recordRequest(method, duration, false);
+    
     res.status(500).json(createErrorResponse(
       1,
       -32603,
@@ -248,6 +258,7 @@ function findServerForTool(toolName: string): string | null {
 async function discoverAndInstall(toolName: string): Promise<string | null> {
   try {
     console.log(`Searching registries for tool: ${toolName}`);
+    recordSearch();
     
     // Search both registries in parallel
     const [githubResults, officialResults] = await Promise.all([
@@ -282,10 +293,12 @@ async function discoverAndInstall(toolName: string): Promise<string | null> {
     initializeServers();
     
     console.log(`Successfully installed ${bestMatch.id}`);
+    recordInstallation(true);
     return bestMatch.id;
     
   } catch (error) {
     console.error('Discovery and installation failed:', error);
+    recordInstallation(false);
     return null;
   }
 }

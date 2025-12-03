@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { recordCacheHit, recordCacheMiss } from '../monitoring/metrics.js';
 
 interface CacheEntry {
   data: any;
@@ -52,15 +53,18 @@ function loadPersistentCache() {
 export function getCached(key: string): any {
   const entry = memoryCache.get(key);
   if (!entry) {
+    recordCacheMiss();
     return null;
   }
   
   const now = Date.now();
   if (now - entry.ts > entry.ttl) {
     memoryCache.delete(key);
+    recordCacheMiss();
     return null;
   }
   
+  recordCacheHit();
   return entry.data;
 }
 

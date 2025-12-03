@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { recordCacheHit, recordCacheMiss } from '../monitoring/metrics.js';
 const memoryCache = new Map();
 const CACHE_DIR = process.env.CACHE_DIR || './cache';
 const PERSISTENT_CACHE_FILE = path.join(CACHE_DIR, 'registry-cache.json');
@@ -40,13 +41,16 @@ function loadPersistentCache() {
 export function getCached(key) {
     const entry = memoryCache.get(key);
     if (!entry) {
+        recordCacheMiss();
         return null;
     }
     const now = Date.now();
     if (now - entry.ts > entry.ttl) {
         memoryCache.delete(key);
+        recordCacheMiss();
         return null;
     }
+    recordCacheHit();
     return entry.data;
 }
 export function setCached(key, data, ttl = DEFAULT_TTL) {
