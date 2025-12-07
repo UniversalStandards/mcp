@@ -1,0 +1,18 @@
+### Error Description
+
+**File:** .github/workflows/auto-review.yml  
+**Ref:** a60a283f5928c9b8ba1bb12e90837cf745f0ae30  
+
+**Error Message:** Failing workflow due to 'TypeError: Cannot read properties of undefined (reading createComment)'.  
+
+**Cause:** The error occurs because the github object is not passed properly in actions/github-script.  
+
+**Solution:** Update the script block to use the function form `async ({github, context}) => { ... }` so that github and context are correctly provided as arguments. Also, ensure the github-token is set as required by actions/github-script.
+
+### Date Created
+
+2025-12-07 09:44:57 UTC
+
+### User
+
+UniversalStandards
