@@ -1,0 +1,72 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build output
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# Logs
+logs/
+*.log
+
+# Cache
+.cache/
+.npm/
+.eslintcache
+
+# Git
+.git/
+.gitignore
+
+# Documentation (build separately if needed)
+docs/
+*.md
+!README.md
+
+# Tests
+tests/
+*.test.ts
+*.spec.ts
+
+# CI/CD
+.github/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Cache directories (will be created at runtime)
+cache/*
+!cache/.gitkeep
+
+# Servers directory (will be populated at runtime)
+servers/*
+!servers/.gitkeep
+
+# Config files that should use environment variables
+configs/*
+!configs/.gitkeep
