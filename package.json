@@ -24,7 +24,7 @@
     "zod": "^4.3.6",
     "dotenv": "^17.4.2",
     "openai": "^6.34.0",
-    "@anthropic-ai/sdk": "^0.82.0",
+    "@anthropic-ai/sdk": "^0.88.0",
     "ajv": "^8.18.0"
   },
   "devDependencies": {
