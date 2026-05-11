@@ -38,6 +38,6 @@
     "globals": "^17.6.0",
     "jest": "^30.3.0",
     "ts-jest": "^29.4.9",
-    "@jest/globals": "^30.3.0"
+    "@jest/globals": "^30.4.1"
   }
 }
