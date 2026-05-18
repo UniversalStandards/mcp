@@ -33,7 +33,7 @@
     "@types/jsonwebtoken": "^9.0.0",
     "@types/jest": "^30.0.0",
     "typescript": "^6.0.3",
-    "tsx": "^4.21.0",
+    "tsx": "^4.22.2",
     "eslint": "^10.3.0",
     "globals": "^17.6.0",
     "jest": "^30.4.2",
