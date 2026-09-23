@@ -1,7 +1,13 @@
-import { describe, test, expect, beforeEach } from '@jest/globals';
+import { describe, test, expect, beforeEach, beforeAll, afterAll } from '@jest/globals';
 import { put, get, remove, list } from '../../src/auth/credential-store';
 
 describe('Credential Store', () => {
+  const previousKey = process.env.ENCRYPTION_KEY;
+  beforeAll(() => { process.env.ENCRYPTION_KEY = 'test-only-encryption-key-with-32-characters'; });
+  afterAll(() => {
+    if (previousKey === undefined) delete process.env.ENCRYPTION_KEY;
+    else process.env.ENCRYPTION_KEY = previousKey;
+  });
   const userId = 'test-user';
   const service = 'test-service';
   const secret = 'super-secret-token';
@@ -94,6 +100,11 @@ describe('Credential Store', () => {
   });
 
   describe('Security', () => {
+    test('refuses to encrypt without a configured key', () => {
+      delete process.env.ENCRYPTION_KEY;
+      expect(() => put(userId, 'missing-key', secret)).toThrow('ENCRYPTION_KEY');
+      process.env.ENCRYPTION_KEY = 'test-only-encryption-key-with-32-characters';
+    });
     test('should encrypt different secrets differently', () => {
       put(userId, 'service1', 'secret1');
       put(userId, 'service2', 'secret2');

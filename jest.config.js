@@ -22,5 +22,5 @@ export default {
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov', 'html'],
   testTimeout: 10000,
-  passWithNoTests: true
+  passWithNoTests: false
 };

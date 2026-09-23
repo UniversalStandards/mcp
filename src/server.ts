@@ -1,16 +1,22 @@
+import type { Server } from 'node:http';
 import express from 'express';
 import dotenv from 'dotenv';
-import { handleRpc } from './proxy/rpc-handler.js';
+import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
+import { timingSafeEqual } from 'node:crypto';
 import { getHealthStatus, checkReadiness, checkLiveness } from './monitoring/health.js';
 import { getMetrics, getMetricsSummary } from './monitoring/metrics.js';
 import { getCacheStats, clearCache } from './discovery/cache-manager.js';
+import { closeMcpSessions, registerMcpRoutes } from './mcp/streamable-http.js';
 
 dotenv.config();
 
-const app = express();
-
-// Middleware
-app.use(express.json({ limit: '10mb' }));
+const port = parseInt(process.env.PORT || '3000', 10);
+const host = process.env.HOST || '127.0.0.1';
+const allowedHosts = parseList(process.env.MCP_ALLOWED_HOSTS);
+const app = createMcpExpressApp({
+  host,
+  ...(allowedHosts.length > 0 ? { allowedHosts } : {})
+});
 
 // Request logging
 app.use((req, _res, next) => {
@@ -60,23 +66,45 @@ app.get('/admin/cache/stats', (_req, res) => {
 });
 
 app.post('/admin/cache/clear', (req, res) => {
+  const expectedToken = process.env.MCP_AUTH_TOKEN?.trim();
+  const suppliedToken = /^Bearer\s+(.+)$/i.exec(req.header('authorization') || '')?.[1];
+  if (!expectedToken || !suppliedToken || !secureEquals(suppliedToken, expectedToken)) {
+    res.setHeader('WWW-Authenticate', 'Bearer');
+    res.status(401).json({ error: 'Bearer authentication is required for cache administration' });
+    return;
+  }
+  if (req.body.pattern !== undefined && (typeof req.body.pattern !== 'string' || req.body.pattern.length > 200)) {
+    res.status(400).json({ error: 'pattern must be a string of at most 200 characters' });
+    return;
+  }
   const pattern = req.body.pattern as string | undefined;
   const cleared = clearCache(pattern);
   res.json({ cleared, pattern: pattern || 'all' });
 });
 
-// MCP JSON-RPC endpoint
-app.post('/mcp/v1', handleRpc);
-app.post('/', handleRpc); // Also support root endpoint
+// Standards-compliant MCP Streamable HTTP endpoint.
+registerMcpRoutes(app);
+
+// The former JSON-RPC route advertised mock results and could install packages
+// from untrusted registry matches. Fail closed until real delegation exists.
+const unsupportedLegacyRpc: express.RequestHandler = (_req, res) => {
+  res.status(410).json({
+    jsonrpc: '2.0',
+    id: null,
+    error: { code: -32000, message: 'Legacy JSON-RPC is retired; use the MCP endpoint at /mcp' }
+  });
+};
+app.post('/mcp/v1', unsupportedLegacyRpc);
+app.post('/', unsupportedLegacyRpc);
 
 // Info endpoint
 app.get('/', (_req, res) => {
   res.json({
     name: 'Universal MCP Hub',
     version: '1.0.0',
-    description: 'Self-expanding MCP server with auto-discovery and installation',
+    description: 'Local MCP hub with server inventory and registry search',
     endpoints: {
-      mcp: 'POST /mcp/v1 or POST /',
+      mcp: 'Streamable HTTP at /mcp; legacy JSON-RPC endpoints return 410',
       health: 'GET /health',
       readiness: 'GET /health/ready',
       liveness: 'GET /health/live',
@@ -106,40 +134,59 @@ app.use((_req, res) => {
   });
 });
 
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received, shutting down gracefully...');
-  process.exit(0);
-});
+export { app };
 
-process.on('SIGINT', () => {
-  console.log('SIGINT received, shutting down gracefully...');
-  process.exit(0);
-});
-
-// Start server
-const port = parseInt(process.env.PORT || '3000', 10);
-const host = process.env.HOST || '0.0.0.0';
-
-app.listen(port, host, () => {
+export function startServer(listenPort = port, listenHost = host): Server {
+  const server = app.listen(listenPort, listenHost, () => {
   console.log(`
 ╔═══════════════════════════════════════════════════════════════╗
 ║                                                               ║
-║          Universal MCP Hub - Self-Expanding Server           ║
+║          Universal Standards MCP Server                      ║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
 
 Server Information:
-  • Host: ${host}
-  • Port: ${port}
+  • Host: ${listenHost}
+  • Port: ${listenPort}
   • Environment: ${process.env.NODE_ENV || 'development'}
   • Node Version: ${process.version}
 
 Endpoints:
-  • MCP RPC: http://${host}:${port}/mcp/v1
-  • Health: http://${host}:${port}/health
-  • Metrics: http://${host}:${port}/metrics
+  • MCP Streamable HTTP: http://${listenHost}:${listenPort}/mcp
+  • Legacy JSON-RPC: retired (HTTP 410)
+  • Health: http://${listenHost}:${listenPort}/health
+  • Metrics: http://${listenHost}:${listenPort}/metrics
 
 Ready to serve MCP requests! 🚀
   `);
-});
+  });
+
+  const shutdown = async (signal: string) => {
+    console.log(`${signal} received, shutting down gracefully...`);
+    await closeMcpSessions();
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => error ? reject(error) : resolve());
+    });
+  };
+
+  process.once('SIGTERM', () => void shutdown('SIGTERM'));
+  process.once('SIGINT', () => void shutdown('SIGINT'));
+
+  return server;
+}
+
+function parseList(value: string | undefined): string[] {
+  return value
+    ? value.split(',').map((item) => item.trim()).filter(Boolean)
+    : [];
+}
+
+function secureEquals(left: string, right: string): boolean {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+if (!process.env.JEST_WORKER_ID) {
+  startServer();
+}

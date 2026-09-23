@@ -1,0 +1,42 @@
+services:
+  universal-mcp:
+    build:
+      context: .
+    image: universal-standards-mcp:local
+    ports:
+      - "127.0.0.1:${MCP_HOST_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      HOST: 0.0.0.0
+      PORT: 3000
+      MCP_ALLOWED_HOSTS: localhost,127.0.0.1
+      MCP_ALLOWED_ORIGINS: ${MCP_ALLOWED_ORIGINS:-}
+      MCP_AUTH_TOKEN: ${MCP_AUTH_TOKEN:-}
+      MCP_ENABLE_JSON_RESPONSE: ${MCP_ENABLE_JSON_RESPONSE:-true}
+      MCP_SESSION_TTL_MS: ${MCP_SESSION_TTL_MS:-1800000}
+      REQUIRE_EXTERNAL_CREDENTIALS: ${REQUIRE_EXTERNAL_CREDENTIALS:-false}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_PROVIDER: ${AI_PROVIDER:-local}
+      AI_MODEL: ${AI_MODEL:-}
+    volumes:
+      - ./config:/app/config
+      - universal-mcp-cache:/app/cache
+      - universal-mcp-servers:/app/servers
+      - universal-mcp-configs:/app/configs
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000/health/live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 5
+
+volumes:
+  universal-mcp-cache:
+  universal-mcp-servers:
+  universal-mcp-configs:

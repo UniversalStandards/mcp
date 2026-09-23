@@ -46,10 +46,7 @@ docs/
 *.md
 !README.md
 
-# Tests
-tests/
-*.test.ts
-*.spec.ts
+# Tests are copied only into the verification stage.
 
 # CI/CD
 .github/

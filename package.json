@@ -1,7 +1,10 @@
 {
   "name": "universal-mcp-hub",
   "version": "1.0.0",
-  "description": "Self-expanding MCP server with auto-discovery and installation",
+  "description": "Local read-only MCP server inventory, registry search, and health tools",
+  "engines": {
+    "node": ">=22 <23"
+  },
   "main": "dist/server.js",
   "type": "module",
   "scripts": {
@@ -12,32 +15,39 @@
     "lint": "eslint src/**/*.ts",
     "validate": "node scripts/validate-config.js"
   },
-  "keywords": ["mcp", "model-context-protocol", "ai", "github", "registry"],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "github",
+    "registry"
+  ],
   "author": "Universal Standards",
   "license": "MIT",
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.126.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@octokit/rest": "^22.0.1",
+    "ajv": "^8.20.0",
+    "dotenv": "^18.0.0",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "node-fetch": "^3.3.0",
-    "zod": "^4.6.5",
-    "dotenv": "^18.0.0",
     "openai": "^7.18.0",
-    "@anthropic-ai/sdk": "^0.126.0",
-    "ajv": "^8.20.0"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@types/node": "^26.6.1",
+    "@jest/globals": "^30.5.1",
     "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.0",
     "@types/jest": "^30.0.0",
-    "typescript": "^7.0.2",
-    "tsx": "^4.23.13",
+    "@types/jsonwebtoken": "^9.0.0",
+    "@types/node": "^26.6.1",
     "eslint": "^10.10.0",
     "globals": "^17.12.0",
     "jest": "^30.5.1",
     "ts-jest": "^29.4.12",
-    "@jest/globals": "^30.5.1"
+    "tsx": "^4.23.13",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.70.0"
   }
 }

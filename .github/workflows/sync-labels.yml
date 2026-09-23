@@ -12,22 +12,8 @@ jobs:
   sync-labels:
     name: Sync Labels to Repository
     permissions:
-      contents: write
+      contents: read
       issues: write
-      actions: write
-      artifact-metadata: write
-      attestations: write
-      checks: write
-      deployments: write
-      discussions: write
-      models: write
-      packages: write
-      pages: write
-      pull-requests: write
-      repository-projects: write
-      security-events: write
-      statuses: write
-      id-token: write
           
     runs-on: ubuntu-latest
     

@@ -36,7 +36,7 @@ export function parseIncoming(body: unknown): ParsedRequest {
       params: validated.params ?? {},
       isValid: true
     };
-  } catch (strictError) {
+  } catch {
     // Fall back to relaxed parsing
     try {
       const relaxed = RelaxedRequestSchema.parse(body);
@@ -57,7 +57,7 @@ export function parseIncoming(body: unknown): ParsedRequest {
         isValid: false,
         errors
       };
-    } catch (relaxedError) {
+    } catch {
       // Complete fallback for any input
       const fallback = body as any;
       return {
