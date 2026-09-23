@@ -149,6 +149,7 @@ function debouncedPersist() {
     persistCache();
     persistTimer = null;
   }, 5000); // Persist 5 seconds after last write
+  persistTimer.unref();
 }
 
 function persistCache() {

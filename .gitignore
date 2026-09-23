@@ -44,6 +44,7 @@ temp/
 .cache/
 .npm/
 .eslintcache
+cache/credentials.json
 
 # Java/MPS legacy (keeping for backwards compatibility)
 junitvmwatcher*.properties

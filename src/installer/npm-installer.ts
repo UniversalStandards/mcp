@@ -1,6 +1,3 @@
-import { exec as _exec } from 'node:child_process';
-import { promisify } from 'node:util';
-const exec = promisify(_exec);
-export async function npmInstall(serverId: string) {
-  await exec(`npm install ${serverId} --prefix ./servers`);
+export async function npmInstall(_serverId: string): Promise<never> {
+  throw new Error('Automatic package installation is disabled; review and install adapters explicitly');
 }

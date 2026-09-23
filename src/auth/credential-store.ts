@@ -58,9 +58,8 @@ function loadCredentials() {
 
 function getEncryptionKey(): Buffer {
   const keySource = process.env.ENCRYPTION_KEY;
-  if (!keySource) {
-    console.warn('ENCRYPTION_KEY not set, using insecure default');
-    return crypto.createHash('sha256').update('dev-key-do-not-use-in-production').digest();
+  if (!keySource || keySource.length < 32) {
+    throw new Error('ENCRYPTION_KEY must be configured with at least 32 characters');
   }
   
   // Ensure key is exactly 32 bytes for AES-256
@@ -158,49 +157,10 @@ export function list(userId: string): CredentialMetadata[] {
   return results;
 }
 
-export function rotateKey(oldKey: string, newKey: string): number {
-  let rotated = 0;
-  
-  // Save old encryption key
-  const oldEnv = process.env.ENCRYPTION_KEY;
-  
-  try {
-    // Decrypt all with old key
-    const decryptedCreds: Array<[string, string, StoredCredential]> = [];
-    
-    process.env.ENCRYPTION_KEY = oldKey;
-    for (const [key, stored] of memoryStore) {
-      try {
-        const [userId, service] = key.split(':');
-        const decrypted = decrypt(stored.encrypted);
-        decryptedCreds.push([userId, service, stored]);
-        decryptedCreds[decryptedCreds.length - 1][2].metadata.lastUsed = decrypted;
-      } catch (error) {
-        console.error(`Failed to decrypt ${key} during rotation`);
-      }
-    }
-    
-    // Re-encrypt with new key
-    process.env.ENCRYPTION_KEY = newKey;
-    memoryStore.clear();
-    
-    for (const [userId, service, stored] of decryptedCreds) {
-      const secret = stored.metadata.lastUsed!; // Temporarily stored here
-      const expiresIn = stored.metadata.expiresAt
-        ? Math.floor((new Date(stored.metadata.expiresAt).getTime() - Date.now()) / 1000)
-        : undefined;
-      
-      put(userId, service, secret, expiresIn);
-      rotated++;
-    }
-    
-    persistCredentials();
-  } finally {
-    // Restore original key
-    process.env.ENCRYPTION_KEY = oldEnv;
-  }
-  
-  return rotated;
+// Key rotation requires an atomic, recoverable migration of the encrypted file.
+// Until that migration exists, refusing the operation is safer than partial rotation.
+export function rotateKey(_oldKey: string, _newKey: string): never {
+  throw new Error('Credential key rotation is unavailable; preserve the current key and migrate with a reviewed procedure');
 }
 
 function decrypt(encryptedValue: string): string {

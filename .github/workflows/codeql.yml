@@ -29,21 +29,8 @@ jobs:
     # Consider using larger runners or machines with greater resources for possible analysis time improvements.
     runs-on: ${{ (matrix.language == 'swift' && 'macos-latest') || 'ubuntu-latest' }}
     permissions:
-      contents: write
-      issues: write
-      actions: write
-      artifact-metadata: write
-      attestations: write
-      checks: write
-      deployments: write
-      discussions: write
-      packages: write
-      pages: write
-      pull-requests: write
-      repository-projects: write
+      contents: read
       security-events: write
-      statuses: write
-      id-token: write
 
     strategy:
       fail-fast: false

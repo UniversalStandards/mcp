@@ -32,7 +32,7 @@ This project and everyone participating in it is governed by our commitment to c
 
 ### Prerequisites
 
-- Node.js 18 or higher
+- Node.js 22 or higher
 - npm or yarn
 - Git
 - A GitHub account
@@ -57,13 +57,12 @@ git remote add upstream https://github.com/UniversalStandards/mcp.git
 
 ```bash
 # Install dependencies
-npm install
+npm ci
 
 # Copy environment template
 cp .env.example .env
 
-# Edit .env with your credentials
-# You'll need at least GITHUB_TOKEN and AI_API_KEY
+# A .env file is optional for read-only local tools. Never commit it.
 
 # Build the project
 npm run build

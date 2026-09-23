@@ -5,29 +5,16 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import Ajv from 'ajv';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const schemaPath = path.resolve(__dirname, '../schema/hub-schema.json');
-const configPath = path.resolve(__dirname, '../config/mcp-config.json');
-
-const ajv = new Ajv({ allErrors: true, strict: false });
-
-const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const schema = JSON.parse(fs.readFileSync(path.join(root, 'schema/mcp-config.schema.json'), 'utf8'));
+const configPath = path.resolve(process.argv[2] || path.join(root, 'config/mcp-config.json'));
 const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+const validate = new Ajv({ allErrors: true, strict: true }).compile(schema);
 
-const validate = ajv.compile(schema);
-const valid = validate({
-  hub: { version: '1.0.0', name: 'Universal MCP Hub', installedServers: [] },
-  config: {
-    registries: { github: { enabled: true }, official: { enabled: true } },
-    normalizer: { provider: 'openai' },
-    github: { repo: process.env.GITHUB_REPO || 'UniversalStandards/mcp', token: '***' }
-  }
-});
-
-if (!valid) {
-  console.error('Schema validation errors:', validate.errors);
-  process.exit(1);
+if (!validate(config)) {
+  console.error(`Invalid MCP configuration: ${configPath}`);
+  console.error(validate.errors);
+  process.exitCode = 1;
+} else {
+  console.log(`Valid MCP configuration: ${configPath}`);
 }
-
-console.log('✅ Schema baseline OK. (Note: full config validation occurs at runtime)');

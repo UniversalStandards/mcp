@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import { getHeapStatistics } from 'node:v8';
 import { getCacheStats } from '../discovery/cache-manager.js';
 
 export interface HealthStatus {
@@ -74,7 +75,7 @@ async function checkFilesystem(): Promise<HealthCheck> {
       try {
         fs.writeFileSync(testFile, 'test');
         fs.unlinkSync(testFile);
-      } catch (error) {
+      } catch {
         return {
           name: 'filesystem',
           status: 'fail',
@@ -101,13 +102,14 @@ async function checkFilesystem(): Promise<HealthCheck> {
 
 function checkMemory(): HealthCheck {
   const usage = process.memoryUsage();
-  const heapUsedPercent = (usage.heapUsed / usage.heapTotal) * 100;
+  const heapLimit = getHeapStatistics().heap_size_limit;
+  const heapUsedPercent = (usage.heapUsed / heapLimit) * 100;
   
   if (heapUsedPercent > 90) {
     return {
       name: 'memory',
       status: 'fail',
-      message: `High memory usage: ${heapUsedPercent.toFixed(1)}%`
+      message: `High heap usage: ${heapUsedPercent.toFixed(1)}% of limit`
     };
   }
   
@@ -115,14 +117,14 @@ function checkMemory(): HealthCheck {
     return {
       name: 'memory',
       status: 'warn',
-      message: `Elevated memory usage: ${heapUsedPercent.toFixed(1)}%`
+      message: `Elevated heap usage: ${heapUsedPercent.toFixed(1)}% of limit`
     };
   }
   
   return {
     name: 'memory',
     status: 'pass',
-    message: `Memory usage: ${heapUsedPercent.toFixed(1)}%`
+    message: `Heap usage: ${heapUsedPercent.toFixed(1)}% of limit`
   };
 }
 
@@ -143,7 +145,7 @@ function checkCache(): HealthCheck {
       status: 'pass',
       message: `${stats.entries} entries cached`
     };
-  } catch (error) {
+  } catch {
     return {
       name: 'cache',
       status: 'fail',
@@ -153,14 +155,18 @@ function checkCache(): HealthCheck {
 }
 
 function checkEnvironment(): HealthCheck {
-  const required = ['GITHUB_TOKEN', 'AI_API_KEY'];
-  const missing: string[] = [];
+  const integrationCredentials = ['GITHUB_TOKEN', 'AI_API_KEY'];
+  const missingIntegrations: string[] = [];
   const warnings: string[] = [];
   
-  for (const key of required) {
+  for (const key of integrationCredentials) {
     if (!process.env[key]) {
-      missing.push(key);
+      missingIntegrations.push(key);
     }
+  }
+
+  if (missingIntegrations.length > 0) {
+    warnings.push(`optional integration credentials: ${missingIntegrations.join(', ')}`);
   }
   
   // Check optional but recommended
@@ -171,11 +177,11 @@ function checkEnvironment(): HealthCheck {
     warnings.push('JWT_SECRET (using default)');
   }
   
-  if (missing.length > 0) {
+  if (process.env.REQUIRE_EXTERNAL_CREDENTIALS === 'true' && missingIntegrations.length > 0) {
     return {
       name: 'environment',
       status: 'fail',
-      message: `Missing required variables: ${missing.join(', ')}`
+      message: `Missing required integration variables: ${missingIntegrations.join(', ')}`
     };
   }
   
