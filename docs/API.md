@@ -10,9 +10,12 @@ The current tools are read-only:
 | --- | --- | --- |
 | `hub_list_servers` | none | Locally configured adapter metadata, with sensitive values redacted |
 | `hub_search_servers` | `query` (1–200 characters), optional `capability` and `limit` (1–25) | Matching public registry listings |
+| `hub_browse_mcp_registry` | Optional server-name `search`, opaque `cursor`, `limit` (1–100) | One page from the official MCP Registry, with `nextCursor`; entries are discoverable only |
 | `hub_health` | none | Current local health checks |
 
 The `universal://info` resource returns basic hub metadata. Tool results are text content containing JSON. Registry listings are untrusted external data; no tool installs or executes a listed server.
+
+`hub_browse_mcp_registry` also returns `structuredContent`. The official registry's `search` filter matches server names, not arbitrary descriptions or tool names. Use `nextCursor` from one page as the next call's `cursor`; do not infer completeness from a single page. An unavailable or malformed registry returns a tool error rather than an empty catalog.
 
 ```bash
 curl -i http://127.0.0.1:3000/mcp \

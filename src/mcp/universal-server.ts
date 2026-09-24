@@ -4,7 +4,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { getHealthStatus } from '../monitoring/health.js';
 import { searchGitHubRegistry, type RegistryServer } from '../discovery/github-registry.js';
-import { searchOfficialRegistry } from '../discovery/official-registry.js';
+import { browseOfficialRegistry, searchOfficialRegistry } from '../discovery/official-registry.js';
 
 interface ConfiguredServer {
   id: string;
@@ -70,30 +70,89 @@ export function createUniversalMcpServer(): McpServer {
         keywords: [query]
       };
 
-      const [githubResults, officialResults] = await Promise.all([
+      const [githubSearch, officialSearch] = await Promise.allSettled([
         searchGitHubRegistry(searchQuery),
         searchOfficialRegistry(searchQuery)
       ]);
 
+      const githubResults = githubSearch.status === 'fulfilled' ? githubSearch.value : [];
+      const officialResults = officialSearch.status === 'fulfilled' ? officialSearch.value : [];
+      const warnings = officialSearch.status === 'rejected'
+        ? ['Official MCP Registry search is unavailable; results may be incomplete']
+        : [];
+
       const results = deduplicateResults([...githubResults, ...officialResults]).slice(0, limit);
+
+      const output = {
+        query,
+        capability: capability || null,
+        count: results.length,
+        results,
+        warnings
+      };
 
       return {
         content: [
           {
             type: 'text',
-            text: JSON.stringify(
-              {
-                query,
-                capability: capability || null,
-                count: results.length,
-                results
-              },
-              null,
-              2
-            )
+            text: JSON.stringify(output, null, 2)
           }
-        ]
+        ],
+        structuredContent: output
       };
+    }
+  );
+
+  server.registerTool(
+    'hub_browse_mcp_registry',
+    {
+      title: 'Browse the official MCP Registry',
+      description: 'Page through published MCP server metadata. Search matches server names only. Entries are discoverable, not installed, connected, or approved to execute.',
+      inputSchema: {
+        search: z.string().trim().min(1).max(200).optional().describe('Optional server-name substring'),
+        cursor: z.string().min(1).max(512).optional().describe('Opaque nextCursor from the previous page'),
+        limit: z.number().int().min(1).max(100).default(25).describe('Maximum entries on this page')
+      },
+      outputSchema: {
+        source: z.literal('official-mcp-registry'),
+        entries: z.array(z.object({
+          id: z.string(),
+          kind: z.literal('mcp_server'),
+          name: z.string(),
+          description: z.string(),
+          version: z.string(),
+          repository: z.string().nullable(),
+          transportTypes: z.array(z.string()),
+          status: z.string(),
+          updatedAt: z.string().nullable(),
+          source: z.literal('official-mcp-registry'),
+          availability: z.literal('discoverable')
+        })),
+        nextCursor: z.string().nullable(),
+        count: z.number().int()
+      },
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: true
+      }
+    },
+    async ({ search, cursor, limit }) => {
+      try {
+        const output = await browseOfficialRegistry({ search, cursor, limit });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
+          structuredContent: { ...output }
+        };
+      } catch (error) {
+        return {
+          isError: true,
+          content: [{
+            type: 'text',
+            text: error instanceof Error ? error.message : 'Unable to browse the official MCP Registry'
+          }]
+        };
+      }
     }
   );
 

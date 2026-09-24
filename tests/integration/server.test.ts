@@ -150,7 +150,7 @@ describe('Server Integration', () => {
     const tools = listedResult.tools as Array<JsonObject>;
     expect(listed.response.status).toBe(200);
     expect(tools.map((tool) => tool.name)).toEqual(
-      expect.arrayContaining(['hub_list_servers', 'hub_search_servers', 'hub_health'])
+      expect.arrayContaining(['hub_list_servers', 'hub_search_servers', 'hub_browse_mcp_registry', 'hub_health'])
     );
 
     const called = await mcpRequest({
