@@ -35,7 +35,7 @@ FROM node:22-alpine
 
 # Add metadata
 LABEL maintainer="Universal Standards <support@universalstandards.dev>"
-LABEL description="Universal MCP Hub - Self-expanding MCP server"
+LABEL description="Universal Standards local MCP catalog and control plane"
 LABEL version="1.0.0"
 
 # Install curl for health checks

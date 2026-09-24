@@ -6,6 +6,7 @@ A local, read-only MCP control plane for discovering public server listings and 
 
 - `hub_list_servers`: list configured adapter metadata with sensitive fields redacted.
 - `hub_search_servers`: search GitHub and the official MCP registry. Results are discovery data, not trusted installation instructions.
+- `hub_browse_mcp_registry`: page through the official MCP Registry's published server metadata, including name, version, transport type, provenance, and an opaque continuation cursor. Entries are discoverable only.
 - `hub_health`: report local process and dependency health.
 - `universal://info`: read hub metadata.
 
@@ -40,6 +41,8 @@ To connect an MCP client, use `http://127.0.0.1:3000/mcp`. The first request mus
 `config/mcp-config.json` is a local adapter inventory, not an execution plan. Validate edits with `npm run validate`. Use environment variables or a local secret manager for tokens; never commit `.env`, plaintext secrets, or generated credential stores. No GitHub or AI token is required to list configured adapters or read health. Registry search may use a GitHub token for higher API limits.
 
 The checked-in `schema/hub-schema.json` describes an aspirational hub data model; `schema/mcp-config.schema.json` is the schema actually used to validate the adapter inventory.
+
+The intended marketplace includes MCP servers, skills, connectors, and extensions as distinct capability types. A listing does not imply that its code is installed or that this hub can call it. The current source coverage and the governed path for building a missing capability are recorded in [marketplace architecture](docs/MARKETPLACE.md).
 
 ## Quality gate
 
