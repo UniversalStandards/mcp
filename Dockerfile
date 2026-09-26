@@ -1,5 +1,5 @@
 # Multi-stage build for optimal image size
-FROM node:18-alpine AS builder
+FROM node:22-alpine AS dependencies
 
 # Set working directory
 WORKDIR /app
@@ -8,24 +8,34 @@ WORKDIR /app
 COPY package*.json ./
 COPY tsconfig.json ./
 
-# Install dependencies
-RUN npm ci --only=production && \
-    npm cache clean --force
+# Install build and runtime dependencies from the lockfile.
+RUN npm ci
 
+FROM dependencies AS verify
+COPY src ./src
+COPY tests ./tests
+COPY config ./config
+COPY schema ./schema
+COPY scripts ./scripts
+COPY jest.config.js eslint.config.js ./
+RUN npm run build && npm run lint && npm run validate && npm test -- --runInBand
+
+FROM dependencies AS builder
 # Copy source code
 COPY src ./src
 
-# Build TypeScript
-RUN npm install -D typescript && \
-    npm run build && \
-    npm uninstall typescript
+# Build TypeScript and remove development-only packages before copying the
+# dependency tree into the production image.
+RUN npm run build && \
+    npm prune --omit=dev && \
+    npm cache clean --force
 
 # Production stage
-FROM node:18-alpine
+FROM node:22-alpine
 
 # Add metadata
 LABEL maintainer="Universal Standards <support@universalstandards.dev>"
-LABEL description="Universal MCP Hub - Self-expanding MCP server"
+LABEL description="Universal Standards local MCP catalog and control plane"
 LABEL version="1.0.0"
 
 # Install curl for health checks

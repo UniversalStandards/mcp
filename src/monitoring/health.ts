@@ -153,13 +153,13 @@ function checkCache(): HealthCheck {
 }
 
 function checkEnvironment(): HealthCheck {
-  const required = ['GITHUB_TOKEN', 'AI_API_KEY'];
-  const missing: string[] = [];
+  const integrationCredentials = ['GITHUB_TOKEN', 'AI_API_KEY'];
+  const missingIntegrations: string[] = [];
   const warnings: string[] = [];
   
-  for (const key of required) {
+  for (const key of integrationCredentials) {
     if (!process.env[key]) {
-      missing.push(key);
+      missingIntegrations.push(key);
     }
   }
   
@@ -171,12 +171,16 @@ function checkEnvironment(): HealthCheck {
     warnings.push('JWT_SECRET (using default)');
   }
   
-  if (missing.length > 0) {
+  if (process.env.REQUIRE_EXTERNAL_CREDENTIALS === 'true' && missingIntegrations.length > 0) {
     return {
       name: 'environment',
       status: 'fail',
-      message: `Missing required variables: ${missing.join(', ')}`
+      message: `Missing required integration variables: ${missingIntegrations.join(', ')}`
     };
+  }
+
+  if (missingIntegrations.length > 0) {
+    warnings.push(`optional integration credentials: ${missingIntegrations.join(', ')}`);
   }
   
   if (warnings.length > 0) {

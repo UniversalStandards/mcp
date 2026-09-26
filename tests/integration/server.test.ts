@@ -1,5 +1,10 @@
 import { describe, test, expect } from '@jest/globals';
 
+type JsonResponse = Record<string, unknown> & {
+  jsonrpc?: string;
+  result?: { status?: string; tools?: unknown[] };
+};
+
 describe('Server Integration', () => {
   const baseUrl = `http://localhost:${process.env.PORT || 3000}`;
 
@@ -9,7 +14,7 @@ describe('Server Integration', () => {
   describe('Health Endpoints', () => {
     test.skip('should return health status', async () => {
       const response = await fetch(`${baseUrl}/health`);
-      const data = await response.json();
+      const data = await response.json() as JsonResponse;
 
       expect(response.status).toBe(200);
       expect(data).toHaveProperty('status');
@@ -18,7 +23,7 @@ describe('Server Integration', () => {
 
     test.skip('should return readiness', async () => {
       const response = await fetch(`${baseUrl}/health/ready`);
-      const data = await response.json();
+      const data = await response.json() as JsonResponse;
 
       expect(data).toHaveProperty('ready');
     });
@@ -27,7 +32,7 @@ describe('Server Integration', () => {
   describe('Metrics Endpoints', () => {
     test.skip('should return metrics', async () => {
       const response = await fetch(`${baseUrl}/metrics`);
-      const data = await response.json();
+      const data = await response.json() as JsonResponse;
 
       expect(data).toHaveProperty('uptime');
       expect(data).toHaveProperty('requests');
@@ -48,7 +53,7 @@ describe('Server Integration', () => {
         })
       });
 
-      const data = await response.json();
+      const data = await response.json() as JsonResponse;
 
       expect(response.status).toBe(200);
       expect(data.jsonrpc).toBe('2.0');
@@ -67,12 +72,12 @@ describe('Server Integration', () => {
         })
       });
 
-      const data = await response.json();
+      const data = await response.json() as JsonResponse;
 
       expect(response.status).toBe(200);
       expect(data.jsonrpc).toBe('2.0');
       expect(data.result).toHaveProperty('tools');
-      expect(Array.isArray(data.result.tools)).toBe(true);
+      expect(Array.isArray(data.result?.tools)).toBe(true);
     });
 
     test.skip('should reject invalid method', async () => {
@@ -87,7 +92,7 @@ describe('Server Integration', () => {
         })
       });
 
-      const data = await response.json();
+      const data = await response.json() as JsonResponse;
 
       expect(response.status).toBe(400);
       expect(data).toHaveProperty('error');
