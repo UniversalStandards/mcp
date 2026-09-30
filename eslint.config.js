@@ -1,4 +1,5 @@
 import globals from "globals";
+import tseslint from "typescript-eslint";
 
 export default [
   {
@@ -6,10 +7,14 @@ export default [
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",
+      parser: tseslint.parser,
       globals: {
         ...globals.node,
         ...globals.es2021
       }
+    },
+    plugins: {
+      "@typescript-eslint": tseslint.plugin
     },
     rules: {
       "no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],

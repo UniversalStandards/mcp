@@ -1,5 +1,15 @@
 import { describe, test, expect } from '@jest/globals';
 
+type JsonObject = Record<string, unknown>;
+
+async function readJson(response: Response): Promise<JsonObject> {
+  const data: unknown = await response.json();
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+    throw new Error('Expected a JSON object response');
+  }
+  return data as JsonObject;
+}
+
 describe('Server Integration', () => {
   const baseUrl = `http://localhost:${process.env.PORT || 3000}`;
 
@@ -9,7 +19,7 @@ describe('Server Integration', () => {
   describe('Health Endpoints', () => {
     test.skip('should return health status', async () => {
       const response = await fetch(`${baseUrl}/health`);
-      const data = await response.json();
+      const data = await readJson(response);
 
       expect(response.status).toBe(200);
       expect(data).toHaveProperty('status');
@@ -18,7 +28,7 @@ describe('Server Integration', () => {
 
     test.skip('should return readiness', async () => {
       const response = await fetch(`${baseUrl}/health/ready`);
-      const data = await response.json();
+      const data = await readJson(response);
 
       expect(data).toHaveProperty('ready');
     });
@@ -27,7 +37,7 @@ describe('Server Integration', () => {
   describe('Metrics Endpoints', () => {
     test.skip('should return metrics', async () => {
       const response = await fetch(`${baseUrl}/metrics`);
-      const data = await response.json();
+      const data = await readJson(response);
 
       expect(data).toHaveProperty('uptime');
       expect(data).toHaveProperty('requests');
@@ -48,7 +58,7 @@ describe('Server Integration', () => {
         })
       });
 
-      const data = await response.json();
+      const data = await readJson(response);
 
       expect(response.status).toBe(200);
       expect(data.jsonrpc).toBe('2.0');
@@ -67,12 +77,16 @@ describe('Server Integration', () => {
         })
       });
 
-      const data = await response.json();
+      const data = await readJson(response);
 
       expect(response.status).toBe(200);
       expect(data.jsonrpc).toBe('2.0');
       expect(data.result).toHaveProperty('tools');
-      expect(Array.isArray(data.result.tools)).toBe(true);
+      const result = data.result;
+      if (typeof result !== 'object' || result === null || Array.isArray(result)) {
+        throw new Error('Expected a tools/list result object');
+      }
+      expect(Array.isArray((result as JsonObject).tools)).toBe(true);
     });
 
     test.skip('should reject invalid method', async () => {
@@ -87,7 +101,7 @@ describe('Server Integration', () => {
         })
       });
 
-      const data = await response.json();
+      const data = await readJson(response);
 
       expect(response.status).toBe(400);
       expect(data).toHaveProperty('error');

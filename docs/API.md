@@ -345,11 +345,15 @@ Currently not implemented. Planned for future release.
 
 ## Authentication
 
-Currently not required. For production deployments, consider implementing:
-- API key authentication via `Authorization` header
-- JWT tokens
-- IP whitelisting
-- Rate limiting per client
+The identity-trust contract slice is present in `src/auth/`, but HTTP enforcement is not yet enabled by this branch. Do not treat the MCP endpoint as production-ready or externally exposed until the `IAM-MCP-001`, `IAM-KEY-001`, `IAM-OAUTH-001` and `IAM-REL-001` controls have linked implementation, negative/conformance tests, secret-management evidence and independent review.
+
+The target flow is:
+
+```text
+credential extraction → credential validation → PrincipalContext → authorization → MCP execution
+```
+
+The reference contract supports API-key, OAuth/OIDC and workload-identity adapters without exposing provider-specific objects to MCP tools. Anonymous access, if ever enabled for a route, must be explicit and separately allow-listed.
 
 ---
 

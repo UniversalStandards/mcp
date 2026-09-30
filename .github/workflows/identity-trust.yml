@@ -1,0 +1,35 @@
+name: Identity trust contract
+
+on:
+  pull_request:
+    paths:
+      - 'src/auth/**'
+      - 'tests/unit/identity-trust.test.ts'
+      - 'docs/IDENTITY_TRUST.md'
+      - 'scripts/validate-identity-trust.mjs'
+      - '.github/workflows/identity-trust.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/auth/**'
+      - 'tests/unit/identity-trust.test.ts'
+      - 'docs/IDENTITY_TRUST.md'
+      - 'scripts/validate-identity-trust.mjs'
+      - '.github/workflows/identity-trust.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/validate-identity-trust.mjs
+      - run: npm run build
+      - run: npm test -- --runInBand
