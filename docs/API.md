@@ -380,7 +380,7 @@ Currently not implemented. Planned for future release.
 
 ## Authentication
 
-The identity-trust contract slice is present in `src/auth/`, but HTTP enforcement is not yet enabled by this branch. Do not treat the MCP endpoint as production-ready or externally exposed until the `IAM-MCP-001`, `IAM-KEY-001`, `IAM-OAUTH-001` and `IAM-REL-001` controls have linked implementation, negative/conformance tests, secret-management evidence and independent review.
+The identity-trust contract and the first HTTP enforcement slice are present in `src/auth/`. MCP and cache-administration routes now apply the configured authentication and authorization middleware. Do not treat the MCP endpoint as production-ready or externally exposed until the `IAM-MCP-001`, `IAM-KEY-001`, `IAM-OAUTH-001` and `IAM-REL-001` controls have linked implementation, negative/conformance tests, secret-management evidence and independent review.
 
 The target flow is:
 
