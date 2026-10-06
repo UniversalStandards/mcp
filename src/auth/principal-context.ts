@@ -42,6 +42,14 @@ export const PrincipalContextSchema = z
       });
     }
 
+    if (context.principalType !== 'anonymous' && context.authMethod === 'none') {
+      issue.addIssue({
+        code: 'custom',
+        path: ['authMethod'],
+        message: 'only anonymous principals may use authMethod=none',
+      });
+    }
+
     if (context.issuedAt !== undefined && context.expiresAt !== undefined && context.expiresAt < context.issuedAt) {
       issue.addIssue({
         code: 'custom',

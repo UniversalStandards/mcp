@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Self-expanding MCP server with auto-discovery and installation",
   "engines": {
-    "node": ">=22 <23"
+    "node": ">=18"
   },
   "main": "dist/server.js",
   "type": "module",

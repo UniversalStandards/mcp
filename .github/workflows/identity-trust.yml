@@ -7,6 +7,10 @@ on:
       - 'tests/unit/identity-trust.test.ts'
       - 'docs/IDENTITY_TRUST.md'
       - 'scripts/validate-identity-trust.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'jest.config.js'
       - '.github/workflows/identity-trust.yml'
   push:
     branches: [main]
@@ -15,6 +19,10 @@ on:
       - 'tests/unit/identity-trust.test.ts'
       - 'docs/IDENTITY_TRUST.md'
       - 'scripts/validate-identity-trust.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'jest.config.js'
       - '.github/workflows/identity-trust.yml'
 
 permissions:
@@ -22,10 +30,12 @@ permissions:
 
 jobs:
   contract:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 22
           cache: npm

@@ -8,19 +8,27 @@ export interface AuthorizationRequest {
   environment?: string;
 }
 
-export interface AuthorizationDecision {
-  decision: 'ALLOW' | 'DENY';
-  controlId: string;
-  reason:
-    | 'principal_required'
-    | 'tenant_mismatch'
-    | 'required_scope_missing'
-    | 'policy_denied'
-    | 'policy_unavailable'
-    | 'policy_malformed'
-    | 'allowed';
-  requiredScopes?: string[];
-}
+export type AuthorizationDenyReason =
+  | 'principal_required'
+  | 'tenant_mismatch'
+  | 'required_scope_missing'
+  | 'policy_denied'
+  | 'policy_unavailable'
+  | 'policy_malformed';
+
+export type AuthorizationDecision =
+  | {
+      decision: 'ALLOW';
+      controlId: string;
+      reason: 'allowed';
+      requiredScopes?: string[];
+    }
+  | {
+      decision: 'DENY';
+      controlId: string;
+      reason: AuthorizationDenyReason;
+      requiredScopes?: string[];
+    };
 
 export interface AuthorizationPolicy {
   evaluate(request: AuthorizationRequest): AuthorizationDecision | Promise<AuthorizationDecision>;
@@ -31,7 +39,41 @@ export function hasScope(principal: PrincipalContext, requiredScope: string): bo
 }
 
 export function deny(controlId: string, reason: AuthorizationDecision['reason'], requiredScopes?: string[]): AuthorizationDecision {
+  if (reason === 'allowed') {
+    throw new Error('DENY decisions cannot use the allowed reason');
+  }
   return { decision: 'DENY', controlId, reason, ...(requiredScopes ? { requiredScopes } : {}) };
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0;
+}
+
+function isValidRequiredScopes(value: unknown): value is string[] | undefined {
+  return value === undefined || (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every(isNonEmptyString) &&
+    new Set(value).size === value.length
+  );
+}
+
+export function isAuthorizationDecision(value: unknown): value is AuthorizationDecision {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  if (!isNonEmptyString(candidate.controlId) || !isValidRequiredScopes(candidate.requiredScopes)) return false;
+  if (candidate.decision === 'ALLOW') return candidate.reason === 'allowed';
+  if (candidate.decision === 'DENY') {
+    return candidate.reason !== 'allowed' && [
+      'principal_required',
+      'tenant_mismatch',
+      'required_scope_missing',
+      'policy_denied',
+      'policy_unavailable',
+      'policy_malformed',
+    ].includes(candidate.reason as AuthorizationDenyReason);
+  }
+  return false;
 }
 
 export async function authorize(
@@ -45,7 +87,7 @@ export async function authorize(
 
   try {
     const decision = await policy.evaluate(request);
-    if (decision.decision !== 'ALLOW' && decision.decision !== 'DENY') {
+    if (!isAuthorizationDecision(decision)) {
       return deny('IAM-AUTHZ-001', 'policy_malformed');
     }
     return decision;

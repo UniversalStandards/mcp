@@ -8,12 +8,16 @@ import {
   generateApiKey,
   parseApiKey,
 } from '../../src/auth/index.js';
+import type { AuthorizationDecision } from '../../src/auth/index.js';
 
 describe('identity trust foundation', () => {
   test('requires a normalized principal and rejects anonymous non-none auth', () => {
     expect(PrincipalContextSchema.safeParse(AnonymousPrincipal).success).toBe(true);
     expect(
       PrincipalContextSchema.safeParse({ ...AnonymousPrincipal, authMethod: 'api_key' }).success,
+    ).toBe(false);
+    expect(
+      PrincipalContextSchema.safeParse({ ...AnonymousPrincipal, principalType: 'user', authMethod: 'none' }).success,
     ).toBe(false);
   });
 
@@ -49,6 +53,22 @@ describe('identity trust foundation', () => {
     const policy = { evaluate: () => ({ decision: 'ALLOW' as const, controlId: 'IAM-AUTHZ-001', reason: 'allowed' as const }) };
     await expect(authorize({ principal: null, action: 'read', resource: 'resource:1' }, policy)).resolves.toMatchObject({ decision: 'DENY', reason: 'principal_required' });
     await expect(authorize({ principal: { ...AnonymousPrincipal, principalId: 'user-1', principalType: 'user', authMethod: 'oauth', tenantId: 'tenant-a' }, action: 'read', resource: 'resource:1', tenantId: 'tenant-b' }, policy)).resolves.toMatchObject({ decision: 'DENY', reason: 'tenant_mismatch' });
+  });
+
+  test('fails closed on incomplete policy decisions', async () => {
+    const malformedPolicy = {
+      evaluate: () => ({ decision: 'ALLOW' } as unknown as AuthorizationDecision),
+    };
+    const decision = await authorize(
+      {
+        principal: { ...AnonymousPrincipal, principalId: 'user-1', principalType: 'user', authMethod: 'oauth' },
+        action: 'read',
+        resource: 'resource:1',
+      },
+      malformedPolicy,
+    );
+
+    expect(decision).toEqual({ decision: 'DENY', controlId: 'IAM-AUTHZ-001', reason: 'policy_malformed' });
   });
 
   test('generates parseable API keys and never uses the pepper as the stored digest', () => {

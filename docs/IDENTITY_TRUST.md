@@ -9,6 +9,11 @@ This repository is the reference MCP implementation for the Universal Identity, 
 - `IAM-AUTHZ-001`: fail-closed authorization wrapper for missing principals, tenant mismatch, malformed decisions and unavailable policy.
 - `IAM-KEY-001` / `IAM-KEY-002`: secure API-key generation, keyed digest primitives and constant-time comparison. Durable issuance, one-time display, lifecycle persistence and vault brokering remain release-gated work.
 
+`authMethod=none` is reserved for the anonymous principal type; named principals
+must use an actual authentication method. Policy adapters are treated as
+untrusted boundaries: an `ALLOW` decision must include a non-empty control ID
+and the `allowed` reason, and malformed decisions are denied.
+
 ## Explicit non-claims
 
 The current slice does not claim that the HTTP server is protected, that OAuth/OIDC is wired, that credentials are stored in a durable database, or that MCP protected-resource metadata is complete. Those capabilities require the remaining controls, integration tests, conformance evidence and independent review before release.
