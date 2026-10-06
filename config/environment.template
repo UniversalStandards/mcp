@@ -1,1 +1,14 @@
-# mirror of .env.example in config folder for infra tools
+# Identity and runtime configuration template. Inject actual values through a
+# secret manager or deployment environment; never commit populated copies.
+NODE_ENV=production
+PORT=3000
+HOST=0.0.0.0
+MCP_AUTH_MODE=required
+MCP_REQUIRED_SCOPES=mcp:invoke
+API_KEY_PEPPER=
+API_KEYS_FILE=./cache/api-keys.json
+AUDIT_LOG_FILE=./cache/audit.log
+ENCRYPTION_KEY=
+OIDC_ISSUER=
+OIDC_AUDIENCE=
+OIDC_JWKS_URL=

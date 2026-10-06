@@ -1,25 +1,48 @@
 import express from 'express';
 import dotenv from 'dotenv';
+import crypto from 'node:crypto';
 import { handleRpc } from './proxy/rpc-handler.js';
 import { getHealthStatus, checkReadiness, checkLiveness } from './monitoring/health.js';
 import { getMetrics, getMetricsSummary } from './monitoring/metrics.js';
 import { getCacheStats, clearCache } from './discovery/cache-manager.js';
+import { createAuthenticationMiddleware, createMcpAuthorizationMiddleware, getAuthMode } from './auth/http-authentication.js';
+import { getOidcProtectedResourceMetadata } from './auth/oidc.js';
 
 dotenv.config();
 
-const app = express();
+export const app = express();
+app.disable('x-powered-by');
+
+const authenticateMcp = createAuthenticationMiddleware();
+const authorizeMcp = createMcpAuthorizationMiddleware({
+  action: 'mcp:invoke',
+  resource: 'mcp://universal-mcp-hub',
+});
+const authenticateAdmin = createAuthenticationMiddleware('required');
+const authorizeAdmin = createMcpAuthorizationMiddleware({
+  action: 'admin:cache',
+  resource: 'mcp://universal-mcp-hub/admin/cache',
+  requiredRoles: ['admin'],
+});
 
 // Middleware
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: process.env.BODY_LIMIT ?? '1mb' }));
+
+app.use((req, res, next) => {
+  const requestId = req.header('x-request-id')?.trim() || crypto.randomUUID();
+  req.requestId = requestId;
+  res.setHeader('X-Request-ID', requestId);
+  next();
+});
 
 // Request logging
 app.use((req, _res, next) => {
   const start = Date.now();
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} requestId=${req.requestId}`);
   
   _res.on('finish', () => {
     const duration = Date.now() - start;
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} - ${_res.statusCode} (${duration}ms)`);
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} - ${_res.statusCode} (${duration}ms) requestId=${req.requestId}`);
   });
   
   next();
@@ -42,6 +65,12 @@ app.get('/health/live', async (_req, res) => {
   res.status(alive ? 200 : 503).json({ alive });
 });
 
+// RFC 9728 protected-resource metadata for MCP authorization discovery.
+app.get('/.well-known/oauth-protected-resource', (req, res) => {
+  const resourceUrl = process.env.MCP_RESOURCE_URL?.trim() || `${req.protocol}://${req.get('host')}/mcp/v1`;
+  res.json(getOidcProtectedResourceMetadata(resourceUrl));
+});
+
 // Metrics endpoints
 app.get('/metrics', (_req, res) => {
   const metrics = getMetrics();
@@ -54,20 +83,20 @@ app.get('/metrics/summary', (_req, res) => {
 });
 
 // Cache management
-app.get('/admin/cache/stats', (_req, res) => {
+app.get('/admin/cache/stats', authenticateAdmin, authorizeAdmin, (_req, res) => {
   const stats = getCacheStats();
   res.json(stats);
 });
 
-app.post('/admin/cache/clear', (req, res) => {
+app.post('/admin/cache/clear', authenticateAdmin, authorizeAdmin, (req, res) => {
   const pattern = req.body.pattern as string | undefined;
   const cleared = clearCache(pattern);
   res.json({ cleared, pattern: pattern || 'all' });
 });
 
 // MCP JSON-RPC endpoint
-app.post('/mcp/v1', handleRpc);
-app.post('/', handleRpc); // Also support root endpoint
+app.post('/mcp/v1', authenticateMcp, authorizeMcp, handleRpc);
+app.post('/', authenticateMcp, authorizeMcp, handleRpc); // Also support root endpoint
 
 // Info endpoint
 app.get('/', (_req, res) => {
@@ -82,8 +111,10 @@ app.get('/', (_req, res) => {
       liveness: 'GET /health/live',
       metrics: 'GET /metrics',
       metricsSummary: 'GET /metrics/summary',
+      protectedResourceMetadata: 'GET /.well-known/oauth-protected-resource',
       cacheStats: 'GET /admin/cache/stats',
-      cacheClear: 'POST /admin/cache/clear'
+      cacheClear: 'POST /admin/cache/clear',
+      authMode: getAuthMode(),
     },
     documentation: 'https://github.com/UniversalStandards/mcp'
   });
@@ -91,7 +122,7 @@ app.get('/', (_req, res) => {
 
 // Error handling
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('Unhandled error:', err);
+  console.error('Unhandled error:', { name: err.name, message: err.message, requestId: _req.requestId });
   res.status(500).json({
     error: 'Internal Server Error',
     message: process.env.NODE_ENV === 'production' ? 'An error occurred' : err.message

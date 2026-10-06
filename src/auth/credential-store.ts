@@ -59,8 +59,13 @@ function loadCredentials() {
 function getEncryptionKey(): Buffer {
   const keySource = process.env.ENCRYPTION_KEY;
   if (!keySource) {
-    console.warn('ENCRYPTION_KEY not set, using insecure default');
-    return crypto.createHash('sha256').update('dev-key-do-not-use-in-production').digest();
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('ENCRYPTION_KEY must be configured in production');
+    }
+    // Tests and local development use an ephemeral key rather than a known
+    // default. Persisted local credentials intentionally become unreadable
+    // after restart until a real key is configured.
+    return crypto.createHash('sha256').update(`ephemeral-dev-key:${process.pid}`).digest();
   }
   
   // Ensure key is exactly 32 bytes for AES-256
@@ -166,16 +171,15 @@ export function rotateKey(oldKey: string, newKey: string): number {
   
   try {
     // Decrypt all with old key
-    const decryptedCreds: Array<[string, string, StoredCredential]> = [];
+    const decryptedCreds: Array<[string, string, StoredCredential, string]> = [];
     
     process.env.ENCRYPTION_KEY = oldKey;
     for (const [key, stored] of memoryStore) {
       try {
         const [userId, service] = key.split(':');
         const decrypted = decrypt(stored.encrypted);
-        decryptedCreds.push([userId, service, stored]);
-        decryptedCreds[decryptedCreds.length - 1][2].metadata.lastUsed = decrypted;
-      } catch (error) {
+        decryptedCreds.push([userId, service, stored, decrypted]);
+      } catch {
         console.error(`Failed to decrypt ${key} during rotation`);
       }
     }
@@ -184,8 +188,7 @@ export function rotateKey(oldKey: string, newKey: string): number {
     process.env.ENCRYPTION_KEY = newKey;
     memoryStore.clear();
     
-    for (const [userId, service, stored] of decryptedCreds) {
-      const secret = stored.metadata.lastUsed!; // Temporarily stored here
+    for (const [userId, service, stored, secret] of decryptedCreds) {
       const expiresIn = stored.metadata.expiresAt
         ? Math.floor((new Date(stored.metadata.expiresAt).getTime() - Date.now()) / 1000)
         : undefined;

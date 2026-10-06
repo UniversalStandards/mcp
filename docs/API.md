@@ -3,8 +3,43 @@
 ## Table of Contents
 
 - [MCP JSON-RPC Endpoints](#mcp-json-rpc-endpoints)
+- [Authentication and authorization](#authentication-and-authorization)
+- [Protected-resource metadata](#protected-resource-metadata)
 - [Health & Monitoring](#health--monitoring)
 - [Administration](#administration)
+
+---
+
+## Authentication and authorization
+
+MCP and administrative routes use the shared `PrincipalContext` boundary.
+Outside production, authentication defaults to optional for local development;
+production defaults to required. Set `MCP_AUTH_MODE=required` explicitly in
+deployed environments.
+
+Clients may send either an OIDC bearer token or an API key:
+
+```http
+Authorization: Bearer <oidc-jwt>
+```
+
+```http
+X-API-Key: usk_live_<key-id>_<secret>
+```
+
+When authentication is required, missing or invalid credentials return `401`
+with `WWW-Authenticate: Bearer realm="universal-mcp"`. Authenticated requests
+must include the configured `MCP_REQUIRED_SCOPES` (default:
+`mcp:invoke`). Missing scopes return `403` with control ID
+`IAM-AUTHZ-001`. Tokens and API-key secrets are never written to audit events.
+
+## Protected-resource metadata
+
+### GET /.well-known/oauth-protected-resource
+
+Returns RFC 9728 metadata for MCP authorization discovery. The response
+contains the resource URL, configured authorization server (when OIDC is
+enabled), supported scopes and bearer-header support.
 
 ---
 

@@ -31,7 +31,7 @@ export type AuthorizationDecision =
     };
 
 export interface AuthorizationPolicy {
-  evaluate(request: AuthorizationRequest): AuthorizationDecision | Promise<AuthorizationDecision>;
+  evaluate(_request: AuthorizationRequest): AuthorizationDecision | Promise<AuthorizationDecision>;
 }
 
 export function hasScope(principal: PrincipalContext, requiredScope: string): boolean {
