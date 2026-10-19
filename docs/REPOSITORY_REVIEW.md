@@ -16,7 +16,7 @@ Review baseline: `origin/main` at `9b145a6`. Implementation branch: `codex/mcp-h
 | Installation | Invocation cannot install packages. The separate installer requires explicit opt-in and exact approved versions, disables lifecycle scripts, avoids shell expansion, and has a timeout. |
 | AI normalization | Local default; optional provider calls have timeouts, bounded responses, schema validation, sensitive-field redaction, and safe error logging. Free-text sensitive data still needs a deployment data policy. |
 | Registry integration | Existing adapters and caching remain. End-to-end live registry compatibility, trustworthy package mapping, partial-failure reporting, and provenance remain open work. |
-| CI | Added quality and Docker checks, action SHA pins, least-privilege permissions, dependency review/audit, and recoverably disabled unfinished automation. Automatic merge/install paths removed. |
+| CI | Added quality and Docker checks, action SHA pins, least-privilege permissions, dependency review/audit, and recoverably disabled unfinished automation. Automatic merge/install paths removed. CodeQL uses the existing repository-managed default setup; the duplicate custom workflow was removed. |
 | Container | Node 22, non-root, locked production-only dependencies, liveness healthcheck, root-owned code/dependencies, separate writable runtime directories. |
 | Documentation | README/API/deployment/status now describe implementation boundaries. Remaining older architecture/troubleshooting material requires reconciliation with the eventual transport design. |
 | Production operations | No production rollout, image registry publication, protected-branch configuration change, or release was performed in this pass. |
@@ -31,6 +31,12 @@ Review baseline: `origin/main` at `9b145a6`. Implementation branch: `codex/mcp-h
 - Workflow authoring checks include actionlint, shell syntax, and official action-reference verification. The later Docker-smoke refactor uses the same repository script for local and CI execution.
 
 These are local verification results, not evidence that GitHub checks ran or a deployment succeeded. The local CLI identity preflight returned HTTP 401; the separate GitHub connector confirmed the authenticated UniversalStandards account.
+
+## GitHub verification and CodeQL reconciliation
+
+The first remote quality gate, dependency review, and npm audit passed. Custom CodeQL analysis completed but GitHub rejected its SARIF upload because repository default setup is already enabled. An authenticated read of `/repos/UniversalStandards/mcp/code-scanning/default-setup` confirmed `state: configured`, Actions and JavaScript/TypeScript languages, and weekly scanning. The duplicate advanced workflow was removed while retaining that managed security configuration. No security setting was disabled.
+
+GitHub documents that [default setup blocks advanced CodeQL uploads](https://docs.github.com/en/code-security/how-tos/find-and-fix-code-vulnerabilities/configure-code-scanning/configure-code-scanning). Managed default-setup results must be verified independently; a configuration read is not a successful scan of this branch.
 
 ## Prioritized remaining work
 
