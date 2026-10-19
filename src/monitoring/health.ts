@@ -57,7 +57,7 @@ async function checkFilesystem(): Promise<HealthCheck> {
   const start = Date.now();
   
   try {
-    const dirs = ['./cache', './config', './servers'];
+    const dirs = [process.env.CACHE_DIR || './cache', './config'];
     
     for (const dir of dirs) {
       if (!fs.existsSync(dir)) {
@@ -69,16 +69,13 @@ async function checkFilesystem(): Promise<HealthCheck> {
         };
       }
       
-      // Test write access
-      const testFile = `${dir}/.health-check`;
       try {
-        fs.writeFileSync(testFile, 'test');
-        fs.unlinkSync(testFile);
+        fs.accessSync(dir, dir === './config' ? fs.constants.R_OK : fs.constants.W_OK);
       } catch (error) {
         return {
           name: 'filesystem',
           status: 'fail',
-          message: `No write access to ${dir}`,
+          message: `Required access to ${dir} is unavailable`,
           duration: Date.now() - start
         };
       }
@@ -153,9 +150,11 @@ function checkCache(): HealthCheck {
 }
 
 function checkEnvironment(): HealthCheck {
-  const required = ['GITHUB_TOKEN', 'AI_API_KEY'];
+  const required: string[] = [];
+  if (['openai', 'anthropic'].includes(process.env.AI_PROVIDER || 'local')) {
+    if (!process.env.AI_API_KEY && !process.env.OPENAI_API_KEY && !process.env.ANTHROPIC_API_KEY) required.push('AI_API_KEY');
+  }
   const missing: string[] = [];
-  const warnings: string[] = [];
   
   for (const key of required) {
     if (!process.env[key]) {
@@ -163,12 +162,11 @@ function checkEnvironment(): HealthCheck {
     }
   }
   
-  // Check optional but recommended
-  if (!process.env.ENCRYPTION_KEY) {
-    warnings.push('ENCRYPTION_KEY (using default)');
+  if ((process.env.JWT_SECRET?.trim().length ?? 0) < 32 && (process.env.API_KEY_PEPPER?.trim().length ?? 0) < 32) {
+    missing.push('JWT_SECRET or API_KEY_PEPPER (at least 32 characters)');
   }
-  if (!process.env.JWT_SECRET) {
-    warnings.push('JWT_SECRET (using default)');
+  if (process.env.ENCRYPTION_KEY && process.env.ENCRYPTION_KEY.trim().length < 32) {
+    missing.push('ENCRYPTION_KEY (at least 32 characters when enabled)');
   }
   
   if (missing.length > 0) {
@@ -176,14 +174,6 @@ function checkEnvironment(): HealthCheck {
       name: 'environment',
       status: 'fail',
       message: `Missing required variables: ${missing.join(', ')}`
-    };
-  }
-  
-  if (warnings.length > 0) {
-    return {
-      name: 'environment',
-      status: 'warn',
-      message: `Missing optional variables: ${warnings.join(', ')}`
     };
   }
   

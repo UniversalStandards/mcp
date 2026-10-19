@@ -12,6 +12,21 @@ build/
 .env
 .env.local
 .env.*.local
+.env.*
+!.env.example
+.npmrc
+.netrc
+.secrets/
+secrets/
+credentials/
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+credentials.json.*
+api-keys.json
+api-keys.json.*
 
 # IDE
 .vscode/
@@ -39,6 +54,7 @@ logs/
 
 # Git
 .git/
+.git
 .gitignore
 
 # Documentation (build separately if needed)
@@ -46,10 +62,8 @@ docs/
 *.md
 !README.md
 
-# Tests
-tests/
-*.test.ts
-*.spec.ts
+# Tests are included for the Docker verification target only. The runtime
+# stage copies compiled output and production dependencies explicitly.
 
 # CI/CD
 .github/

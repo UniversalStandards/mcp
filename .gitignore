@@ -3,17 +3,61 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.yarn/
+.pnpm-store/
+package-lock.json.tmp
+
+# Package manager and tool caches
+.npm/
+.cache/
+.eslintcache
+.turbo/
+.parcel-cache/
+.vite/
+cache/
 
 # Build output
 dist/
 build/
 *.js.map
 *.d.ts.map
+*.tsbuildinfo
+artifacts/
+reports/
+test-results/
+playwright-report/
+*.tgz
 
 # Environment variables
 .env
+.env.*
+!.env.example
 .env.local
 .env.*.local
+
+# Credentials and local secret material
+.secrets/
+secrets/
+credentials/
+# Runtime auth stores stay ignored even when CACHE_DIR is overridden.
+credentials.json
+credentials.json.*
+api-keys.json
+api-keys.json.*
+registry-cache.json
+.npmrc
+.netrc
+.docker/config.json
+*.secret
+*.secrets
+*.token
+*.token.json
+*.credentials.json
+*.service-account.json
+*.pem
+*.key
+*.p12
+*.pfx
 
 # IDE
 .vscode/
@@ -40,10 +84,14 @@ tmp/
 temp/
 *.tmp
 
-# Cache directories
-.cache/
-.npm/
-.eslintcache
+# Generated workflow reports and temporary analysis files
+audit.json
+labels.json
+ai_metrics.json
+pr_diff.txt
+analysis_prompt.txt
+code_sample.txt
+ollama_analysis.txt
 
 # Java/MPS legacy (keeping for backwards compatibility)
 junitvmwatcher*.properties

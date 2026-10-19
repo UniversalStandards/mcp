@@ -1,5 +1,24 @@
-# fine-grained permission model (placeholder)
-allow:
-  - tools:*
-  - resources:*
-deny: []
+# Declarative authorization baseline for policy adapters.
+# The HTTP middleware is the enforcement point; this file is configuration
+# input for a policy adapter and must not be treated as an enforcement layer
+# by itself.
+version: 1
+defaultEffect: deny
+rules:
+  - id: mcp-invoke-authenticated
+    effect: allow
+    actions:
+      - mcp:invoke
+    resources:
+      - mcp://universal-mcp-hub
+    subjects:
+      - authenticated
+
+  - id: admin-cache-admin-only
+    effect: allow
+    actions:
+      - admin:cache
+    resources:
+      - mcp://universal-mcp-hub/admin/cache
+    subjects:
+      - role:admin

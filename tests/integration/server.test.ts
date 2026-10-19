@@ -1,96 +1,72 @@
-import { describe, test, expect } from '@jest/globals';
+import { afterAll, beforeAll, describe, expect, test } from '@jest/globals';
+import crypto from 'node:crypto';
+import type { Server } from 'node:http';
+import { app } from '../../src/server.js';
+import { sign } from '../../src/auth/jwt-handler.js';
 
-describe('Server Integration', () => {
-  const baseUrl = `http://localhost:${process.env.PORT || 3000}`;
+describe('HTTP server integration', () => {
+  let server: Server;
+  let baseUrl: string;
+  let invokeToken: string;
+  const previousSecret = process.env.JWT_SECRET;
 
-  // Note: These tests would require the server to be running
-  // For CI/CD, you'd start the server in a before hook
-
-  describe('Health Endpoints', () => {
-    test.skip('should return health status', async () => {
-      const response = await fetch(`${baseUrl}/health`);
-      const data = await response.json();
-
-      expect(response.status).toBe(200);
-      expect(data).toHaveProperty('status');
-      expect(data).toHaveProperty('checks');
+  beforeAll(async () => {
+    process.env.JWT_SECRET = crypto.randomBytes(48).toString('hex');
+    invokeToken = sign({ sub: 'integration-user', scopes: ['mcp:invoke'], roles: [] });
+    server = app.listen(0, '127.0.0.1');
+    await new Promise<void>((resolve, reject) => {
+      server.once('listening', resolve);
+      server.once('error', reject);
     });
-
-    test.skip('should return readiness', async () => {
-      const response = await fetch(`${baseUrl}/health/ready`);
-      const data = await response.json();
-
-      expect(data).toHaveProperty('ready');
-    });
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('Expected TCP listener');
+    baseUrl = `http://127.0.0.1:${address.port}`;
   });
 
-  describe('Metrics Endpoints', () => {
-    test.skip('should return metrics', async () => {
-      const response = await fetch(`${baseUrl}/metrics`);
-      const data = await response.json();
-
-      expect(data).toHaveProperty('uptime');
-      expect(data).toHaveProperty('requests');
-      expect(data).toHaveProperty('cache');
-    });
+  afterAll(async () => {
+    server.closeAllConnections();
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    if (previousSecret === undefined) delete process.env.JWT_SECRET;
+    else process.env.JWT_SECRET = previousSecret;
   });
 
-  describe('MCP RPC', () => {
-    test.skip('should handle ping request', async () => {
-      const response = await fetch(`${baseUrl}/mcp/v1`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 1,
-          method: 'ping',
-          params: {}
-        })
-      });
+  const rpc = (method: string, params: Record<string, unknown> = {}) => fetch(`${baseUrl}/mcp/v1`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${invokeToken}` },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 42, method, params })
+  });
 
-      const data = await response.json();
+  test('serves public liveness and denies unauthenticated cache mutation', async () => {
+    const live = await fetch(`${baseUrl}/health/live`);
+    expect(live.status).toBe(200);
+    expect(await live.json()).toEqual({ alive: true });
+    const clear = await fetch(`${baseUrl}/admin/cache/clear`, { method: 'POST' });
+    expect(clear.status).toBe(401);
+  });
 
-      expect(response.status).toBe(200);
-      expect(data.jsonrpc).toBe('2.0');
-      expect(data.result).toHaveProperty('status', 'ok');
-    });
+  test('handles authenticated ping', async () => {
+    const response = await rpc('ping');
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ jsonrpc: '2.0', id: 42, result: { status: 'ok' } });
+  });
 
-    test.skip('should handle tools/list request', async () => {
-      const response = await fetch(`${baseUrl}/mcp/v1`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 2,
-          method: 'tools/list',
-          params: {}
-        })
-      });
+  test('lists callable hub tools', async () => {
+    const response = await rpc('tools/list');
+    const data = await response.json() as { result: { tools: unknown[] } };
+    expect(response.status).toBe(200);
+    expect(Array.isArray(data.result.tools)).toBe(true);
+  });
 
-      const data = await response.json();
+  test('rejects unknown methods', async () => {
+    const response = await rpc('invalid/method');
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ id: 42, error: { code: -32601 } });
+  });
 
-      expect(response.status).toBe(200);
-      expect(data.jsonrpc).toBe('2.0');
-      expect(data.result).toHaveProperty('tools');
-      expect(Array.isArray(data.result.tools)).toBe(true);
-    });
-
-    test.skip('should reject invalid method', async () => {
-      const response = await fetch(`${baseUrl}/mcp/v1`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: 3,
-          method: 'invalid/method',
-          params: {}
-        })
-      });
-
-      const data = await response.json();
-
-      expect(response.status).toBe(400);
-      expect(data).toHaveProperty('error');
-    });
+  test('reports unavailable execution as an error with the original request ID', async () => {
+    const response = await rpc('tools/call', { name: 'github_search_repos', arguments: { query: 'mcp' } });
+    const data = await response.json();
+    expect(data).toMatchObject({ id: 42, error: { code: -32603 } });
+    expect(data).not.toHaveProperty('result');
   });
 });
