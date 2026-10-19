@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
+import { z } from 'zod';
 
 export type Provider = 'openai' | 'anthropic' | 'local';
 
@@ -29,6 +30,18 @@ Your task is to analyze a request and return a structured JSON response with:
 - suggestedServer: The suggested MCP server to handle this request (github, filesystem, git, brave-search, etc.)
 
 Return ONLY valid JSON, no markdown or explanation.`;
+
+const NormalizedResultSchema = z.object({
+  method: z.enum(['tools/call', 'tools/list', 'resources/read', 'resources/list', 'prompts/get', 'prompts/list']),
+  params: z.record(z.string(), z.unknown()).default({}),
+  intent: z.string().optional(),
+  confidence: z.number().min(0).max(1).optional(),
+  toolName: z.string().optional(),
+  suggestedServer: z.string().optional()
+});
+
+const SECRET_FIELD = /(api[-_]?key|authorization|cookie|credential|password|private[-_]?key|secret|token)/i;
+const MODEL_INPUT_LIMIT = 16_000;
 
 export async function normalizeRequest(
   provider: Provider,
@@ -60,8 +73,9 @@ export async function normalizeRequest(
       // Local/fallback logic
       return normalizeLocal(original);
     }
-  } catch (error) {
-    console.error('AI normalization failed:', error);
+  } catch {
+    // Provider errors can contain submitted data or credential headers.
+    console.warn('AI normalization failed; using local normalization');
     return normalizeLocal(original);
   }
 }
@@ -73,12 +87,12 @@ async function normalizeWithOpenAI(model: string, original: unknown): Promise<No
     return normalizeLocal(original);
   }
 
-  const client = new OpenAI({ apiKey });
+  const client = new OpenAI({ apiKey, timeout: 10_000, maxRetries: 0 });
   const response = await client.chat.completions.create({
     model: model || 'gpt-4o-mini',
     messages: [
       { role: 'system', content: NORMALIZATION_PROMPT },
-      { role: 'user', content: `Normalize this request: ${JSON.stringify(original)}` }
+      { role: 'user', content: `Normalize this request: ${serializeForModel(original)}` }
     ],
     temperature: 0.1,
     max_tokens: 500,
@@ -90,12 +104,12 @@ async function normalizeWithOpenAI(model: string, original: unknown): Promise<No
     return normalizeLocal(original);
   }
 
-  const result = JSON.parse(content);
+  const result = parseNormalizedResult(content);
   return {
-    method: result.method || 'tools/call',
-    params: result.params || {},
+    method: result.method,
+    params: result.params,
     intent: result.intent,
-    confidence: result.confidence || 0.8,
+    confidence: result.confidence ?? 0.8,
     toolName: result.toolName,
     suggestedServer: result.suggestedServer || inferServer(result.toolName || result.method)
   };
@@ -108,7 +122,7 @@ async function normalizeWithAnthropic(model: string, original: unknown): Promise
     return normalizeLocal(original);
   }
 
-  const client = new Anthropic({ apiKey });
+  const client = new Anthropic({ apiKey, timeout: 10_000, maxRetries: 0 });
   const response = await client.messages.create({
     model: model || 'claude-3-5-sonnet-20241022',
     max_tokens: 500,
@@ -116,7 +130,7 @@ async function normalizeWithAnthropic(model: string, original: unknown): Promise
     messages: [
       {
         role: 'user',
-        content: `${NORMALIZATION_PROMPT}\n\nNormalize this request: ${JSON.stringify(original)}`
+        content: `${NORMALIZATION_PROMPT}\n\nNormalize this request: ${serializeForModel(original)}`
       }
     ]
   });
@@ -126,15 +140,51 @@ async function normalizeWithAnthropic(model: string, original: unknown): Promise
     return normalizeLocal(original);
   }
 
-  const result = JSON.parse(content.text);
+  const result = parseNormalizedResult(content.text);
   return {
-    method: result.method || 'tools/call',
-    params: result.params || {},
+    method: result.method,
+    params: result.params,
     intent: result.intent,
-    confidence: result.confidence || 0.8,
+    confidence: result.confidence ?? 0.8,
     toolName: result.toolName,
     suggestedServer: result.suggestedServer || inferServer(result.toolName || result.method)
   };
+}
+
+function parseNormalizedResult(content: string): z.infer<typeof NormalizedResultSchema> {
+  const parsedJson: unknown = JSON.parse(content);
+  const parsed = NormalizedResultSchema.safeParse(parsedJson);
+  if (!parsed.success) {
+    throw new Error('AI normalizer returned an invalid MCP normalization result');
+  }
+  return parsed.data;
+}
+
+function serializeForModel(value: unknown): string {
+  const sanitized = sanitizeForModel(value);
+  const serialized = JSON.stringify(sanitized);
+  return serialized.length > MODEL_INPUT_LIMIT
+    ? `${serialized.slice(0, MODEL_INPUT_LIMIT)}…[truncated]`
+    : serialized;
+}
+
+function sanitizeForModel(value: unknown, depth = 0): unknown {
+  if (depth > 6) return '[truncated]';
+  if (typeof value === 'string') {
+    return value.length > 4_000 ? `${value.slice(0, 4_000)}…[truncated]` : value;
+  }
+  if (Array.isArray(value)) {
+    return value.slice(0, 100).map((item) => sanitizeForModel(item, depth + 1));
+  }
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).slice(0, 100).map(([key, item]) => [
+        key,
+        SECRET_FIELD.test(key) ? '[REDACTED]' : sanitizeForModel(item, depth + 1)
+      ])
+    );
+  }
+  return value;
 }
 
 function normalizeLocal(original: unknown): NormalizeResult {

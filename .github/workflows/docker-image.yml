@@ -1,0 +1,93 @@
+name: Docker image CI
+
+# Publishing/deployment require a separate reviewed workflow with a protected
+# environment and explicit operator approval. This workflow only tests images.
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docker-runtime-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  image:
+    name: Build and smoke-test image
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    env:
+      IMAGE: mcp-runtime:ci
+      CONTAINER: mcp-runtime-ci
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Verify the application inside the Docker build
+        run: docker build --pull --target verify --tag mcp-verify:ci .
+
+      - name: Build the runtime image from this checkout
+        run: docker build --pull --target runtime --tag "$IMAGE" .
+
+      - name: Verify runtime identity and image configuration
+        run: |
+          test "$(docker image inspect --format '{{.Config.User}}' "$IMAGE")" = node
+          test "$(docker image inspect --format '{{.Config.WorkingDir}}' "$IMAGE")" = /app
+          test -n "$(docker image inspect --format '{{json .Config.Healthcheck.Test}}' "$IMAGE" | sed '/^null$/d')"
+          docker run --rm --network none --cap-drop ALL --security-opt no-new-privileges:true \
+            --entrypoint node "$IMAGE" --input-type=module -e '
+              import assert from "node:assert/strict";
+              assert.notEqual(process.getuid(), 0, "Runtime must not run as root");
+              assert.equal(process.versions.node.split(".")[0], "22");
+            '
+
+      - name: Start isolated runtime without provider credentials
+        run: |
+          JWT_SECRET="$(openssl rand -hex 32)" docker run --detach --name "$CONTAINER" \
+            --network none --env JWT_SECRET \
+            --cap-drop ALL --security-opt no-new-privileges:true \
+            --pids-limit 128 --memory 512m --cpus 2 \
+            --env MCP_AUTO_INSTALL=false \
+            --env MCP_ALLOWED_HOSTS=127.0.0.1:3000,localhost:3000 \
+            "$IMAGE"
+
+      - name: Verify runtime health, authentication, and hub behavior
+        run: docker exec "$CONTAINER" node scripts/runtime-smoke.mjs
+
+      - name: Verify the image healthcheck
+        run: |
+          for attempt in {1..30}; do
+            status="$(docker inspect --format '{{.State.Health.Status}}' "$CONTAINER")"
+            case "$status" in
+              healthy) exit 0 ;;
+              unhealthy) echo 'Container healthcheck failed' >&2; exit 1 ;;
+            esac
+            sleep 2
+          done
+          echo 'Container did not become healthy within 60 seconds' >&2
+          exit 1
+
+      - name: Capture runtime diagnostics on failure
+        if: ${{ failure() }}
+        run: |
+          if docker container inspect "$CONTAINER" > /dev/null 2>&1; then
+            docker logs "$CONTAINER"
+            docker inspect --format '{{json .State}}' "$CONTAINER"
+          fi
+
+      - name: Remove smoke-test container
+        if: ${{ always() }}
+        run: |
+          if docker container inspect "$CONTAINER" > /dev/null 2>&1; then
+            docker rm --force "$CONTAINER"
+          fi

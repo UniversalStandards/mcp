@@ -8,61 +8,53 @@ on:
       - '.github/labels.yml'
   workflow_dispatch:
 
+permissions: {}
+
+concurrency:
+  group: sync-labels-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   sync-labels:
     name: Sync Labels to Repository
     permissions:
-      contents: write
+      contents: read
       issues: write
-      actions: write
-      artifact-metadata: write
-      attestations: write
-      checks: write
-      deployments: write
-      discussions: write
-      models: write
-      packages: write
-      pages: write
-      pull-requests: write
-      repository-projects: write
-      security-events: write
-      statuses: write
-      id-token: write
           
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v7
-      
-      - name: Install dependencies
-        run: |
-          npm install -g js-yaml
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '22.x'
+
+      - name: Install locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts
       
       - name: Parse labels configuration
         id: parse
         run: |
-          node << 'EOF'
-          const fs = require('fs');
+          node <<'NODE'
+          const fs = require('node:fs');
           const yaml = require('js-yaml');
-          
-          try {
-            const config = yaml.load(fs.readFileSync('.github/labels.yml', 'utf8'));
-            const labels = config.labels || [];
-            
-            console.log(`Found ${labels.length} labels to sync`);
-            
-            // Save labels as JSON for the next step
-            fs.writeFileSync('labels.json', JSON.stringify(labels, null, 2));
-            
-          } catch (e) {
-            console.error('Error parsing labels.yml:', e);
-            process.exit(1);
+          const config = yaml.load(fs.readFileSync('.github/labels.yml', 'utf8')) ?? {};
+          const labels = config.labels ?? [];
+          if (!Array.isArray(labels)) {
+            throw new Error('labels must be an array');
           }
-          EOF
+          console.log(`Found ${labels.length} labels to sync`);
+          fs.writeFileSync('labels.json', JSON.stringify(labels, null, 2));
+          NODE
       
       - name: Sync labels to repository
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             const fs = require('fs');
@@ -71,19 +63,20 @@ jobs:
             console.log(`Syncing ${labels.length} labels...`);
             
             // Get existing labels
-            const existingLabels = await github.rest.issues.listLabelsForRepo({
+            const existingLabels = await github.paginate(github.rest.issues.listLabelsForRepo, {
               owner: context.repo.owner,
               repo: context.repo.repo,
               per_page: 100
             });
             
             const existingLabelMap = new Map(
-              existingLabels.data.map(label => [label.name, label])
+              existingLabels.map(label => [label.name, label])
             );
             
             let created = 0;
             let updated = 0;
             let skipped = 0;
+            let failures = 0;
             
             for (const label of labels) {
               try {
@@ -118,6 +111,7 @@ jobs:
                 }
               } catch (error) {
                 console.error(`Error processing label ${label.name}:`, error.message);
+                failures++;
               }
             }
             
@@ -136,5 +130,9 @@ jobs:
             
             core.summary.addRaw(summary);
             await core.summary.write();
-            
-            console.log(`\nSync completed: ${created} created, ${updated} updated, ${skipped} skipped`);
+
+            if (failures > 0) {
+              core.setFailed(`Label sync failed for ${failures} label(s).`);
+            }
+
+            console.log(`\nSync completed: ${created} created, ${updated} updated, ${skipped} skipped, ${failures} failed`);

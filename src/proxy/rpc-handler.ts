@@ -1,11 +1,9 @@
 import type { Request, Response } from 'express';
 import { parseIncoming, createErrorResponse, createSuccessResponse, validateMethod } from '../normalizer/request-parser.js';
 import { normalizeRequest } from '../normalizer/ai-client.js';
-import { recordRequest, recordSearch, recordInstallation } from '../monitoring/metrics.js';
+import { recordRequest, recordSearch } from '../monitoring/metrics.js';
 import { searchGitHubRegistry } from '../discovery/github-registry.js';
 import { searchOfficialRegistry } from '../discovery/official-registry.js';
-import { npmInstall } from '../installer/npm-installer.js';
-import { addServerToConfigs } from '../installer/config-generator.js';
 import { getCached, setCached } from '../discovery/cache-manager.js';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -62,12 +60,13 @@ function initializeServers() {
 export async function handleRpc(req: Request, res: Response): Promise<void> {
   const startTime = Date.now();
   let method = 'unknown';
-  let success = false;
+  let requestId: string | number = 1;
   
   try {
     // Parse incoming request
     const parsed = parseIncoming(req.body);
     method = parsed.method;
+    requestId = parsed.id;
     
     // Validate method
     if (!validateMethod(parsed.method)) {
@@ -106,7 +105,7 @@ export async function handleRpc(req: Request, res: Response): Promise<void> {
           confidence: 0.95
         }
       : await normalizeRequest(
-          (process.env.AI_PROVIDER as any) || 'openai',
+          (process.env.AI_PROVIDER as any) || 'local',
           process.env.AI_MODEL || 'gpt-4o-mini',
           req.body
         );
@@ -124,29 +123,18 @@ export async function handleRpc(req: Request, res: Response): Promise<void> {
       return;
     }
     
-    // Log performance
-    const duration = Date.now() - startTime;
-    console.log(`Request processed in ${duration}ms`);
-    
-    success = true;
-    recordRequest(method, duration, true);
-    
-    res.json(createSuccessResponse(parsed.id, {
-      normalized,
-      processingTime: duration,
-      note: 'Request normalized and routed'
-    }));
+    res.status(400).json(createErrorResponse(parsed.id, -32601, `Method is not implemented: ${parsed.method}`));
     
   } catch (error) {
-    console.error('RPC handler error:', error);
-    const duration = Date.now() - startTime;
-    recordRequest(method, duration, false);
+    console.error('RPC handler error:', { method, message: error instanceof Error ? error.message : 'Unknown error' });
     
     res.status(500).json(createErrorResponse(
-      1,
+      requestId,
       -32603,
-      `Internal error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      'The requested operation could not be completed'
     ));
+  } finally {
+    recordRequest(method, Date.now() - startTime, res.statusCode < 400);
   }
 }
 
@@ -158,6 +146,24 @@ async function handleToolCall(
   
   if (!toolName) {
     throw new Error('Tool name is required');
+  }
+  if (toolName === 'hub_list_servers') {
+    return { content: [{ type: 'text', text: JSON.stringify(Array.from(installedServers.entries()).map(([id, server]) => ({
+      id, capabilities: server.capabilities ?? {}, availability: 'configured', callable: false
+    }))) }] };
+  }
+  if (toolName === 'hub_search_servers') {
+    const args = params.arguments as Record<string, unknown> | undefined;
+    if (!args || typeof args.query !== 'string' || args.query.trim().length === 0 || args.query.length > 256) {
+      throw new Error('A search query between 1 and 256 characters is required');
+    }
+    recordSearch();
+    const results = await Promise.all([
+      searchGitHubRegistry({ keywords: [args.query] }),
+      searchOfficialRegistry({ keywords: [args.query] })
+    ]);
+    const servers = Array.from(new Map(results.flat().map(server => [server.id, { ...server, availability: 'discoverable', callable: false }])).values());
+    return { content: [{ type: 'text', text: JSON.stringify(servers) }] };
   }
   
   // Check cache for tool location
@@ -174,28 +180,18 @@ async function handleToolCall(
     serverId = findServerForTool(toolName);
   }
   
-  // If not found, try to discover and install
+  // Invocation cannot grant package installation authority. Discovery is a
+  // separate catalog operation; deployment tooling owns approved installation.
   if (!serverId || !installedServers.has(serverId)) {
-    console.log(`Tool ${toolName} not found, attempting discovery...`);
-    serverId = await discoverAndInstall(toolName);
-  }
-  
-  if (!serverId) {
-    throw new Error(`No server found for tool: ${toolName}`);
+    throw new Error('No configured transport is available for this tool');
   }
   
   // Cache the tool-to-server mapping
   setCached(cacheKey, serverId, 3600 * 1000);
   
-  // For now, return a mock response indicating the server that would handle it
-  // In a full implementation, this would spawn the server process and forward the request
-  return {
-    tool: toolName,
-    server: serverId,
-    status: 'would_execute',
-    params: params.arguments || {},
-    note: 'Full server execution to be implemented'
-  };
+  throw new Error(
+    `Tool execution is not available for ${toolName}; server ${serverId} is catalogued but no MCP transport bridge is configured`
+  );
 }
 
 async function handleResourceRead(
@@ -223,12 +219,9 @@ async function handleResourceRead(
     throw new Error(`No server found for resource: ${uri}`);
   }
   
-  return {
-    uri,
-    server: serverId,
-    status: 'would_read',
-    note: 'Full resource reading to be implemented'
-  };
+  throw new Error(
+    `Resource reading is not available for ${uri}; server ${serverId} is catalogued but no MCP transport bridge is configured`
+  );
 }
 
 function findServerForTool(toolName: string): string | null {
@@ -255,53 +248,6 @@ function findServerForTool(toolName: string): string | null {
   return null;
 }
 
-async function discoverAndInstall(toolName: string): Promise<string | null> {
-  try {
-    console.log(`Searching registries for tool: ${toolName}`);
-    recordSearch();
-    
-    // Search both registries in parallel
-    const [githubResults, officialResults] = await Promise.all([
-      searchGitHubRegistry({ toolName, keywords: [toolName] }),
-      searchOfficialRegistry({ toolName, keywords: [toolName] })
-    ]);
-    
-    const allResults = [...githubResults, ...officialResults];
-    
-    if (allResults.length === 0) {
-      console.log(`No servers found for tool: ${toolName}`);
-      return null;
-    }
-    
-    // Pick the best match (first result, assumed to be most relevant)
-    const bestMatch = allResults[0];
-    console.log(`Found server: ${bestMatch.name} (${bestMatch.id})`);
-    
-    // Check if already installed
-    if (installedServers.has(bestMatch.id)) {
-      return bestMatch.id;
-    }
-    
-    // Install the server
-    const packageName = bestMatch.npmPackage || bestMatch.id;
-    console.log(`Installing ${packageName}...`);
-    
-    await npmInstall(packageName);
-    addServerToConfigs(bestMatch.id, bestMatch.repository);
-    
-    // Reload servers
-    initializeServers();
-    
-    console.log(`Successfully installed ${bestMatch.id}`);
-    recordInstallation(true);
-    return bestMatch.id;
-    
-  } catch (error) {
-    console.error('Discovery and installation failed:', error);
-    recordInstallation(false);
-    return null;
-  }
-}
 
 async function listAllTools(): Promise<any[]> {
   const tools: any[] = [];
@@ -309,7 +255,7 @@ async function listAllTools(): Promise<any[]> {
   // Add built-in tools
   tools.push({
     name: 'hub_list_servers',
-    description: 'List all installed MCP servers',
+    description: 'List configured MCP servers and their availability; configuration does not establish execution readiness',
     inputSchema: {
       type: 'object',
       properties: {}
@@ -322,42 +268,18 @@ async function listAllTools(): Promise<any[]> {
     inputSchema: {
       type: 'object',
       properties: {
-        query: { type: 'string', description: 'Search query' },
-        capability: { type: 'string', description: 'Specific capability to search for' }
-      }
+        query: { type: 'string', minLength: 1, maxLength: 256, description: 'Search query' }
+      },
+      required: ['query'],
+      additionalProperties: false
     }
   });
-  
-  // In a full implementation, would query each server for its tools
-  for (const [serverId, server] of installedServers) {
-    if (server.capabilities?.tools) {
-      const toolsForServer = serverTools.get(serverId) || [];
-      toolsForServer.forEach((tool: string) => {
-        tools.push({
-          name: tool,
-          description: `${tool} from ${serverId}`,
-          server: serverId
-        });
-      });
-    }
-  }
   
   return tools;
 }
 
 async function listAllResources(): Promise<any[]> {
   const resources: any[] = [];
-  
-  // In a full implementation, would query each server for its resources
-  for (const [serverId, server] of installedServers) {
-    if (server.capabilities?.resources) {
-      resources.push({
-        uri: `${serverId}://`,
-        name: `${serverId} resources`,
-        description: `Resources provided by ${serverId}`
-      });
-    }
-  }
   
   return resources;
 }

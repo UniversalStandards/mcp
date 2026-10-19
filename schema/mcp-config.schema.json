@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://universalstandards.dev/schemas/mcp-config.schema.json",
+  "title": "Universal MCP server configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["mcpServers", "globalSettings"],
+  "properties": {
+    "mcpServers": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+          "$ref": "#/definitions/server"
+      }
+    },
+    "globalSettings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["logLevel", "timeout", "retryAttempts", "cacheEnabled", "cacheTTL"],
+      "properties": {
+        "logLevel": {
+          "type": "string",
+          "enum": ["trace", "debug", "info", "warn", "error", "fatal"]
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "retryAttempts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cacheEnabled": {
+          "type": "boolean"
+        },
+        "cacheTTL": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    }
+  },
+  "definitions": {
+    "server": {
+      "type": "object",
+      "required": ["command", "args", "capabilities"],
+      "properties": {
+        "command": {
+          "type": "string",
+          "minLength": 1
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "capabilities": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "resources": { "type": "boolean" },
+            "tools": { "type": "boolean" },
+            "prompts": { "type": "boolean" }
+          }
+        },
+        "metadata": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    }
+  }
+}

@@ -4,11 +4,14 @@
   "description": "Self-expanding MCP server with auto-discovery and installation",
   "main": "dist/server.js",
   "type": "module",
+  "engines": { "node": ">=22 <23" },
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
-    "test": "jest",
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:ci": "node --experimental-vm-modules node_modules/jest/bin/jest.js --runInBand --ci",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint src/**/*.ts",
     "validate": "node scripts/validate-config.js"
   },
@@ -25,16 +28,18 @@
     "dotenv": "^18.0.0",
     "openai": "^7.23.0",
     "@anthropic-ai/sdk": "^0.126.0",
-    "ajv": "^8.20.0"
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.0",
     "@types/jest": "^30.0.0",
-    "typescript": "^7.0.2",
+    "typescript": "^6.0.3",
     "tsx": "^4.23.15",
     "eslint": "^10.10.0",
+    "typescript-eslint": "^8.70.0",
     "globals": "^17.12.0",
     "jest": "^30.5.2",
     "ts-jest": "^29.4.12",

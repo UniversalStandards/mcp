@@ -26,10 +26,6 @@ initializeStore();
 
 function initializeStore() {
   try {
-    const dir = path.dirname(CREDENTIALS_FILE);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
     loadCredentials();
   } catch (error) {
     console.warn('Failed to initialize credential store:', error);
@@ -56,11 +52,9 @@ function loadCredentials() {
   }
 }
 
-function getEncryptionKey(): Buffer {
-  const keySource = process.env.ENCRYPTION_KEY;
-  if (!keySource) {
-    console.warn('ENCRYPTION_KEY not set, using insecure default');
-    return crypto.createHash('sha256').update('dev-key-do-not-use-in-production').digest();
+function getEncryptionKey(keySource = process.env.ENCRYPTION_KEY): Buffer {
+  if (!keySource || keySource.trim().length < 32) {
+    throw new Error('ENCRYPTION_KEY must be configured with at least 32 characters');
   }
   
   // Ensure key is exactly 32 bytes for AES-256
@@ -73,18 +67,7 @@ export function put(
   secret: string,
   expiresInSeconds?: number
 ): void {
-  const key = getEncryptionKey();
-  const iv = crypto.randomBytes(IV_LENGTH);
-  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-  
-  const encrypted = Buffer.concat([
-    cipher.update(secret, 'utf8'),
-    cipher.final()
-  ]);
-  
-  const tag = cipher.getAuthTag();
-  const combined = Buffer.concat([iv, tag, encrypted]);
-  const encodedValue = combined.toString('base64');
+  const encodedValue = encrypt(secret, getEncryptionKey());
   
   const now = new Date();
   const expiresAt = expiresInSeconds 
@@ -102,8 +85,10 @@ export function put(
   };
   
   const storeKey = `${userId}:${service}`;
+  const updated = new Map(memoryStore);
+  updated.set(storeKey, credential);
+  persistCredentials(updated);
   memoryStore.set(storeKey, credential);
-  persistCredentials();
 }
 
 export function get(userId: string, service: string): string | null {
@@ -151,7 +136,7 @@ export function list(userId: string): CredentialMetadata[] {
   
   for (const [key, stored] of memoryStore) {
     if (key.startsWith(`${userId}:`)) {
-      results.push(stored.metadata);
+      results.push({ ...stored.metadata });
     }
   }
   
@@ -159,52 +144,30 @@ export function list(userId: string): CredentialMetadata[] {
 }
 
 export function rotateKey(oldKey: string, newKey: string): number {
-  let rotated = 0;
-  
-  // Save old encryption key
-  const oldEnv = process.env.ENCRYPTION_KEY;
-  
-  try {
-    // Decrypt all with old key
-    const decryptedCreds: Array<[string, string, StoredCredential]> = [];
-    
-    process.env.ENCRYPTION_KEY = oldKey;
-    for (const [key, stored] of memoryStore) {
-      try {
-        const [userId, service] = key.split(':');
-        const decrypted = decrypt(stored.encrypted);
-        decryptedCreds.push([userId, service, stored]);
-        decryptedCreds[decryptedCreds.length - 1][2].metadata.lastUsed = decrypted;
-      } catch (error) {
-        console.error(`Failed to decrypt ${key} during rotation`);
-      }
-    }
-    
-    // Re-encrypt with new key
-    process.env.ENCRYPTION_KEY = newKey;
-    memoryStore.clear();
-    
-    for (const [userId, service, stored] of decryptedCreds) {
-      const secret = stored.metadata.lastUsed!; // Temporarily stored here
-      const expiresIn = stored.metadata.expiresAt
-        ? Math.floor((new Date(stored.metadata.expiresAt).getTime() - Date.now()) / 1000)
-        : undefined;
-      
-      put(userId, service, secret, expiresIn);
-      rotated++;
-    }
-    
-    persistCredentials();
-  } finally {
-    // Restore original key
-    process.env.ENCRYPTION_KEY = oldEnv;
+  const sourceKey = getEncryptionKey(oldKey);
+  const destinationKey = getEncryptionKey(newKey);
+  const updated = new Map<string, StoredCredential>();
+  // Do not change memory, process configuration, or the file unless every record decrypts.
+  for (const [key, stored] of memoryStore) {
+    updated.set(key, {
+      encrypted: encrypt(decrypt(stored.encrypted, sourceKey), destinationKey),
+      metadata: { ...stored.metadata },
+    });
   }
-  
-  return rotated;
+  persistCredentials(updated);
+  memoryStore.clear();
+  for (const [key, stored] of updated) memoryStore.set(key, stored);
+  return updated.size;
 }
 
-function decrypt(encryptedValue: string): string {
-  const key = getEncryptionKey();
+function encrypt(secret: string, key: Buffer): string {
+  const iv = crypto.randomBytes(IV_LENGTH);
+  const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
+  const encrypted = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()]);
+  return Buffer.concat([iv, cipher.getAuthTag(), encrypted]).toString('base64');
+}
+
+function decrypt(encryptedValue: string, key = getEncryptionKey()): string {
   const buffer = Buffer.from(encryptedValue, 'base64');
   
   // Extract IV, tag, and encrypted data
@@ -223,21 +186,15 @@ function decrypt(encryptedValue: string): string {
   return decrypted.toString('utf8');
 }
 
-function persistCredentials() {
+function persistCredentials(records = memoryStore) {
+  const json = JSON.stringify(Object.fromEntries(records), null, 2);
+  fs.mkdirSync(path.dirname(CREDENTIALS_FILE), { recursive: true });
+  const temporaryPath = `${CREDENTIALS_FILE}.${crypto.randomUUID()}.tmp`;
   try {
-    const data: Record<string, StoredCredential> = {};
-    
-    for (const [key, value] of memoryStore) {
-      data[key] = value;
-    }
-    
-    const json = JSON.stringify(data, null, 2);
-    fs.writeFileSync(CREDENTIALS_FILE, json, {
-      mode: 0o600, // Owner read/write only
-      encoding: 'utf8'
-    });
-  } catch (error) {
-    console.error('Failed to persist credentials:', error);
+    fs.writeFileSync(temporaryPath, json, { mode: 0o600, encoding: 'utf8' });
+    fs.renameSync(temporaryPath, CREDENTIALS_FILE);
+  } finally {
+    if (fs.existsSync(temporaryPath)) fs.unlinkSync(temporaryPath);
   }
 }
 
@@ -261,9 +218,3 @@ const cleanupInterval = setInterval(() => {
 
 // Allow cleanup to be stopped in tests
 cleanupInterval.unref();
-
-// Persist on exit
-process.on('exit', () => {
-  clearInterval(cleanupInterval);
-  persistCredentials();
-});

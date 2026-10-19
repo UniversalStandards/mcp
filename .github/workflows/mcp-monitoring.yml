@@ -1,15 +1,18 @@
-name: MCP Server Monitoring
+name: MCP Server Monitoring (disabled)
 
+# Restore through a reviewed PR defining the actual deployment endpoint,
+# bounded checks, alert routing, and tests before restoring scheduled triggers.
 on:
-  schedule:
-    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+permissions: {}
 
 jobs:
-  monitor:
+  disabled:
     runs-on: ubuntu-latest
+    timeout-minutes: 1
     steps:
-      - name: Collect Metrics
-        uses: actions/github-script@v9
-        with:
-          script: |
-            core.info('Collecting MCP metrics placeholder');
+      - name: Monitoring is intentionally disabled
+        run: |
+          echo '::error::Disabled. Define and review a real endpoint and alert routing before restoring monitoring.'
+          exit 1

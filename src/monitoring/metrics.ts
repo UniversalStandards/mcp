@@ -57,9 +57,10 @@ class MetricsCollector extends EventEmitter {
     this.startTime = Date.now();
     
     // Emit metrics periodically
-    setInterval(() => {
+    const interval = setInterval(() => {
       this.emit('metrics', this.getMetrics());
     }, 60000); // Every minute
+    interval.unref();
   }
 
   recordRequest(method: string, duration: number, success: boolean): void {

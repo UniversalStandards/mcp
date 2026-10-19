@@ -1,419 +1,48 @@
-# Universal MCP Hub API Reference
+# HTTP API
 
-## Table of Contents
+The current service provides an authenticated JSON-RPC gateway and capability catalog. A full MCP transport bridge, initialization negotiation, downstream sessions, and cancellation forwarding are pending implementation. Do not configure clients as if this were a stdio server.
 
-- [MCP JSON-RPC Endpoints](#mcp-json-rpc-endpoints)
-- [Health & Monitoring](#health--monitoring)
-- [Administration](#administration)
+## Authentication and authorization
 
----
+Supply one credential using `Authorization: Bearer <JWT-or-API-key>`, `Authorization: Api-Key <API-key>`, or `X-API-Key: <API-key>`. Duplicate or conflicting credential headers are rejected.
 
-## MCP JSON-RPC Endpoints
+JWT verification permits HS256 only, requires an expiration, and requires a signing secret of at least 32 characters. Set `JWT_ISSUER` and `JWT_AUDIENCE` to constrain token issuers and intended recipients. A JWT subject identifies the principal; `scopes` and `roles` supply permissions.
 
-### POST /mcp/v1
+API keys are stored as HMAC digests with expiry and revocation metadata. Configure `API_KEY_PEPPER` and provision keys through the operator-side `ApiKeyRegistry`. Registry changes require a process restart to refresh the running instance; this file-backed implementation is intended for a single writer.
 
-Main endpoint for MCP JSON-RPC 2.0 requests.
+| Route | Permission |
+| --- | --- |
+| `GET /health/live` | Public process liveness |
+| `GET /health/ready` | Public readiness boolean |
+| `GET /health` | `metrics:read` and role `admin`; component health |
+| `GET /` | Public service description |
+| `POST /mcp/v1`, `POST /` | Authenticated principal with `mcp:invoke` |
+| `GET /metrics`, `GET /metrics/summary` | `metrics:read` and role `admin` |
+| `GET /admin/cache/stats`, `POST /admin/cache/clear` | `admin:cache` and role `admin` |
 
-**Request Format:**
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "tools/call",
-  "params": {
-    "name": "github_search_repos",
-    "arguments": {
-      "query": "mcp server"
-    }
-  }
-}
-```
+Missing/invalid credentials return 401. Insufficient permissions return 403. Protected routes validate the Host authority and any Origin header. Non-loopback hosts and browser origins require explicit configuration.
 
-**Supported Methods:**
+## JSON-RPC methods
 
-#### ping
-Health check ping.
+Requests use JSON-RPC 2.0 and an explicit ID:
 
 ```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "ping",
-  "params": {}
-}
+{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}
 ```
 
-**Response:**
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "result": {
-    "status": "ok",
-    "timestamp": 1234567890
-  }
-}
-```
+- `ping`: returns process status.
+- `tools/list`: returns the two callable hub tools.
+- `tools/call` with `name: "hub_list_servers"`: returns configured-server metadata with `callable: false`.
+- `tools/call` with `name: "hub_search_servers"` and `arguments.query`: searches registries. Queries must contain 1–256 characters. Results are discoverable metadata and do not grant installation authority.
+- `resources/list`: returns no downstream resources until a transport bridge is configured.
+- Downstream `tools/call` and `resources/read`: return an error. No synthetic execution success is produced.
 
-#### tools/list
-List all available tools from installed MCP servers.
+Unsupported or unavailable behavior must be treated as a failure by callers. Registry failures can produce partial or empty discovery results; they do not establish that a capability is absent.
 
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "tools/list",
-  "params": {}
-}
-```
+## Operational responses
 
-**Response:**
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "result": {
-    "tools": [
-      {
-        "name": "github_search_repos",
-        "description": "Search GitHub repositories",
-        "server": "github-primary",
-        "inputSchema": {
-          "type": "object",
-          "properties": {
-            "query": { "type": "string" }
-          }
-        }
-      }
-    ]
-  }
-}
-```
+Liveness returns `{"alive":true}`. Readiness returns 200 or 503 with `{"ready":true|false}`; missing authentication configuration makes the instance unready while keeping liveness available.
 
-#### tools/call
-Execute a specific tool.
+JSON-RPC unknown methods return code `-32601`; unsuccessful operations return `-32603`. Errors preserve the request ID and omit internal failure details. The gateway remains a legacy compatibility API, so clients must not assume complete MCP notification/batch semantics.
 
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "tools/call",
-  "params": {
-    "name": "github_search_repos",
-    "arguments": {
-      "query": "machine learning",
-      "language": "python"
-    }
-  }
-}
-```
-
-**Response:**
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "result": {
-    "tool": "github_search_repos",
-    "server": "github-primary",
-    "status": "would_execute",
-    "params": {
-      "query": "machine learning",
-      "language": "python"
-    }
-  }
-}
-```
-
-#### resources/list
-List available resources.
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "resources/list",
-  "params": {}
-}
-```
-
-#### resources/read
-Read a specific resource.
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "method": "resources/read",
-  "params": {
-    "uri": "file:///path/to/file.txt"
-  }
-}
-```
-
----
-
-## Health & Monitoring
-
-### GET /health
-
-Comprehensive health check with individual component status.
-
-**Response:**
-```json
-{
-  "status": "healthy",
-  "timestamp": "2024-01-15T10:30:00.000Z",
-  "uptime": 3600000,
-  "checks": [
-    {
-      "name": "filesystem",
-      "status": "pass",
-      "duration": 5
-    },
-    {
-      "name": "memory",
-      "status": "pass",
-      "message": "Memory usage: 45.2%"
-    },
-    {
-      "name": "cache",
-      "status": "pass",
-      "message": "150 entries cached"
-    },
-    {
-      "name": "environment",
-      "status": "warn",
-      "message": "Missing optional variables: ENCRYPTION_KEY (using default)"
-    }
-  ]
-}
-```
-
-**Status Codes:**
-- `200` - Healthy or degraded
-- `503` - Unhealthy
-
-### GET /health/ready
-
-Kubernetes-style readiness probe.
-
-**Response:**
-```json
-{
-  "ready": true
-}
-```
-
-### GET /health/live
-
-Kubernetes-style liveness probe.
-
-**Response:**
-```json
-{
-  "alive": true
-}
-```
-
-### GET /metrics
-
-Detailed metrics in JSON format.
-
-**Response:**
-```json
-{
-  "uptime": 3600000,
-  "requests": {
-    "total": 1250,
-    "successful": 1200,
-    "failed": 50,
-    "avgDuration": 125.5,
-    "byMethod": {
-      "tools/call": {
-        "count": 800,
-        "sum": 95000,
-        "min": 50,
-        "max": 500,
-        "avg": 118.75,
-        "lastUpdate": 1234567890
-      }
-    }
-  },
-  "cache": {
-    "hits": 450,
-    "misses": 200,
-    "hitRate": 0.692
-  },
-  "discovery": {
-    "searches": 15,
-    "installations": 5,
-    "failures": 1
-  },
-  "memory": {
-    "used": 125829120,
-    "total": 268435456,
-    "percentage": 46.875
-  }
-}
-```
-
-### GET /metrics/summary
-
-Human-readable metrics summary.
-
-**Response:**
-```
-Universal MCP Hub Metrics
-========================
-Uptime: 1h 0m 0s
-Requests: 1250 (✓ 1200, ✗ 50)
-Avg Duration: 125.50ms
-Cache Hit Rate: 69.2%
-Discoveries: 15 searches, 5 installs
-Memory: 120.05MB / 256.00MB (46.9%)
-```
-
----
-
-## Administration
-
-### GET /admin/cache/stats
-
-Get cache statistics.
-
-**Response:**
-```json
-{
-  "entries": 150,
-  "size": 524288,
-  "oldestEntry": 1234567000,
-  "newestEntry": 1234567890
-}
-```
-
-### POST /admin/cache/clear
-
-Clear cache entries.
-
-**Request:**
-```json
-{
-  "pattern": "github:.*"
-}
-```
-
-**Response:**
-```json
-{
-  "cleared": 45,
-  "pattern": "github:.*"
-}
-```
-
----
-
-## Error Responses
-
-All errors follow JSON-RPC 2.0 error format:
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 1,
-  "error": {
-    "code": -32600,
-    "message": "Invalid Request"
-  }
-}
-```
-
-**Error Codes:**
-- `-32700` - Parse error
-- `-32600` - Invalid Request
-- `-32601` - Method not found
-- `-32602` - Invalid params
-- `-32603` - Internal error
-
----
-
-## Rate Limiting
-
-Currently not implemented. Planned for future release.
-
----
-
-## Authentication
-
-Currently not required. For production deployments, consider implementing:
-- API key authentication via `Authorization` header
-- JWT tokens
-- IP whitelisting
-- Rate limiting per client
-
----
-
-## Examples
-
-### Using curl
-
-```bash
-# Ping
-curl -X POST http://localhost:3000/mcp/v1 \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"ping","params":{}}'
-
-# List tools
-curl -X POST http://localhost:3000/mcp/v1 \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
-
-# Health check
-curl http://localhost:3000/health
-
-# Metrics
-curl http://localhost:3000/metrics
-```
-
-### Using Node.js
-
-```javascript
-const response = await fetch('http://localhost:3000/mcp/v1', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    jsonrpc: '2.0',
-    id: 1,
-    method: 'tools/list',
-    params: {}
-  })
-});
-
-const data = await response.json();
-console.log(data.result.tools);
-```
-
-### Using Python
-
-```python
-import requests
-
-response = requests.post('http://localhost:3000/mcp/v1', json={
-    'jsonrpc': '2.0',
-    'id': 1,
-    'method': 'tools/list',
-    'params': {}
-})
-
-data = response.json()
-print(data['result']['tools'])
-```
-
----
-
-## WebSocket Support
-
-Not currently implemented. Planned for future release to enable:
-- Real-time notifications
-- Streaming responses
-- Bidirectional communication
+Cache administration accepts an optional `pattern`. Use narrowly scoped patterns and authenticated administrative access. Deploy network rate limits and request budgets appropriate to the environment; the service does not yet enforce distributed rate limits.

@@ -1,15 +1,13 @@
-name: Auto-Install MCP Server
+name: MCP Server Install Review
 
 on:
-  repository_dispatch:
-    types: [install-mcp-server]
   workflow_dispatch:
     inputs:
       server_id:
-        description: 'MCP Server ID to install'
+        description: 'MCP package name to review; no installation is performed'
         required: true
       source:
-        description: 'Registry source'
+        description: 'Registry source label for the audit trail'
         required: true
         type: choice
         options:
@@ -17,42 +15,32 @@ on:
           - official-registry
           - npm
 
+permissions: {}
+
 jobs:
-  install:
+  review:
+    name: Review package metadata without repository mutation
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: {}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
-          node-version: '18'
+          node-version: '22.x'
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install MCP Server
-        id: install
+      - name: Validate package identifier
         run: |
-          SERVER_ID="${{ github.event.client_payload.server_id || github.event.inputs.server_id }}"
-          SOURCE="${{ github.event.client_payload.source || github.event.inputs.source }}"
-          
-          echo "Installing $SERVER_ID from $SOURCE"
-          npm install "$SERVER_ID" --prefix ./servers
-          
-          # Generate metadata
-          node dist/installer/generate-metadata.js "$SERVER_ID" "$SOURCE"
+          if [[ ! "$SERVER_ID" =~ ^(@[A-Za-z0-9._-]+/)?[A-Za-z0-9._-]+$ ]]; then
+            echo "Invalid npm package identifier: $SERVER_ID" >&2
+            exit 1
+          fi
+          echo "Reviewing $SERVER_ID from the '${SOURCE}' source label."
+        env:
+          SERVER_ID: ${{ inputs.server_id }}
+          SOURCE: ${{ inputs.source }}
 
-      - name: Commit changes
-        run: |
-          git config user.name "MCP Hub Bot"
-          git config user.email "bot@mcp-hub.local"
-          git add servers/ cache/
-          git commit -m "Auto-install: ${{ github.event.client_payload.server_id || github.event.inputs.server_id }}"
-          git push
-
-      - name: Update cache
-        run: node dist/installer/update-cache.js
+      - name: Inspect registry metadata
+        run: npm view "$SERVER_ID" version dist.integrity --json
+        env:
+          SERVER_ID: ${{ inputs.server_id }}

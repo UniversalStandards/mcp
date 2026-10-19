@@ -1,19 +1,18 @@
-name: Documentation Sync
+name: Documentation Sync (disabled)
 
+# Restore through a reviewed PR supplying a real generator, tests, scoped
+# permissions, and an explicit publication approval before restoring triggers.
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'src/**'
-      - 'README.md'
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
-  sync:
+  disabled:
     runs-on: ubuntu-latest
+    timeout-minutes: 1
     steps:
-      - uses: actions/checkout@v7
-      - name: Generate docs (placeholder)
-        run: echo 'Generate docs here'
-      - name: Commit wiki updates (placeholder)
-        run: echo 'Update Wiki via API'
+      - name: Documentation synchronization is intentionally disabled
+        run: |
+          echo '::error::Disabled. Restore only after implementing and reviewing the generator and publication controls documented above.'
+          exit 1
